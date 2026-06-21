@@ -1,0 +1,269 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: radial-gradient(circle at top, #ffd6e7, #211326 55%, #07040a);
+  color: white;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.app {
+  width: min(430px, 100%);
+  min-height: 100vh;
+  margin: auto;
+  padding: 28px 18px;
+}
+
+.hero {
+  text-align: center;
+  padding: 30px 8px 22px;
+}
+
+.tag {
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  font-size: 11px;
+  opacity: 0.7;
+  margin: 0;
+}
+
+.small-tag {
+  letter-spacing: 2px;
+  margin-bottom: 4px;
+}
+
+h1 {
+  font-size: 56px;
+  margin: 8px 0;
+}
+
+h3 {
+  margin-top: 0;
+  font-size: 21px;
+}
+
+.subtitle {
+  opacity: 0.75;
+  line-height: 1.5;
+  margin: 18px auto 0;
+  max-width: 320px;
+}
+
+.card {
+  margin-bottom: 18px;
+  padding: 22px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.25);
+}
+
+.card p,
+.card span {
+  opacity: 0.78;
+}
+
+.choose-card {
+  display: grid;
+  gap: 12px;
+}
+
+.choose-card button {
+  border: 0;
+  border-radius: 20px;
+  padding: 18px;
+  color: white;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 6px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.tabs button {
+  border: 0;
+  border-radius: 17px;
+  padding: 13px;
+  color: white;
+  font-weight: 700;
+  background: transparent;
+  cursor: pointer;
+}
+
+.tabs button.active {
+  background: rgba(255, 255, 255, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.countdown {
+  text-align: center;
+}
+
+.countdown h2 {
+  font-size: 52px;
+  margin: 4px 0;
+}
+
+.heart {
+  width: 100%;
+  height: 112px;
+  border: 0;
+  border-radius: 24px;
+  font-size: 54px;
+  color: white;
+  background: rgba(255, 255, 255, 0.16);
+  cursor: pointer;
+}
+
+.heart:active {
+  transform: scale(0.96);
+}
+
+.moods {
+  display: grid;
+  gap: 10px;
+}
+
+.moods button {
+  border: 0;
+  padding: 15px;
+  border-radius: 18px;
+  color: white;
+  background: rgba(255, 255, 255, 0.14);
+  cursor: pointer;
+}
+
+.moods button.active {
+  background: rgba(255, 255, 255, 0.34);
+}
+
+textarea,
+input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: white;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+textarea {
+  min-height: 110px;
+  resize: none;
+  border-radius: 18px;
+  padding: 15px;
+}
+
+textarea::placeholder,
+input::placeholder {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.note {
+  margin-bottom: 0;
+}
+
+.chat-card {
+  min-height: 560px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.chat-head h3 {
+  margin-bottom: 0;
+}
+
+.online-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #65ff9a;
+  box-shadow: 0 0 18px #65ff9a;
+}
+
+.chat-box {
+  height: 360px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+  margin-bottom: 14px;
+}
+
+.empty {
+  text-align: center;
+  opacity: 0.6;
+  margin-top: 120px;
+}
+
+.message {
+  max-width: 78%;
+  align-self: flex-start;
+  padding: 12px 14px;
+  border-radius: 20px 20px 20px 6px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.message.mine {
+  align-self: flex-end;
+  border-radius: 20px 20px 6px 20px;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.message strong {
+  display: block;
+  font-size: 12px;
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+
+.message span {
+  display: block;
+  line-height: 1.35;
+}
+
+.send-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.send-row input {
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.send-row button {
+  border: 0;
+  border-radius: 18px;
+  padding: 0 18px;
+  color: white;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.28);
+  cursor: pointer;
+}
