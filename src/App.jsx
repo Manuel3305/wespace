@@ -21,12 +21,21 @@ const partnerOf = {
   Nela: "Manuel",
 };
 
+const quickStatus = [
+  "🏠 Zuhause",
+  "🚗 Unterwegs",
+  "💼 Arbeit",
+  "🛏️ Schlafen",
+  "⚓ Schiff",
+  "❤️ Bei dir",
+];
+
 export default function App() {
   const [tab, setTab] = useState("home");
   const [user, setUser] = useState(localStorage.getItem("wespace_user") || "");
   const [data, setData] = useState({
-    Manuel: { hearts: 0, mood: "", moment: "" },
-    Nela: { hearts: 0, mood: "", moment: "" },
+    Manuel: { hearts: 0, mood: "", moment: "", status: "", battery: "" },
+    Nela: { hearts: 0, mood: "", moment: "", status: "", battery: "" },
   });
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
@@ -41,8 +50,8 @@ export default function App() {
     return onSnapshot(statusRef, (snap) => {
       if (snap.exists()) {
         setData({
-          Manuel: { hearts: 0, mood: "", moment: "" },
-          Nela: { hearts: 0, mood: "", moment: "" },
+          Manuel: { hearts: 0, mood: "", moment: "", status: "", battery: "" },
+          Nela: { hearts: 0, mood: "", moment: "", status: "", battery: "" },
           ...snap.data(),
         });
       }
@@ -82,6 +91,7 @@ export default function App() {
       [user]: {
         ...(data[user] || {}),
         ...newData,
+        updatedAt: new Date().toISOString(),
       },
     };
 
@@ -99,6 +109,20 @@ export default function App() {
     });
 
     setText("");
+  }
+
+  function timeText(iso) {
+    if (!iso) return "Noch nicht aktualisiert";
+
+    const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+
+    if (diff < 1) return "gerade eben";
+    if (diff === 1) return "vor 1 Minute";
+    if (diff < 60) return `vor ${diff} Minuten`;
+
+    const hours = Math.floor(diff / 60);
+    if (hours === 1) return "vor 1 Stunde";
+    return `vor ${hours} Stunden`;
   }
 
   if (!user) {
@@ -131,7 +155,7 @@ export default function App() {
         </p>
       </section>
 
-      <section className="tabs">
+      <section className="tabs three">
         <button
           className={tab === "home" ? "active" : ""}
           onClick={() => setTab("home")}
@@ -145,6 +169,13 @@ export default function App() {
         >
           Chat
           {unread > 0 && <span className="notify">{unread}</span>}
+        </button>
+
+        <button
+          className={tab === "status" ? "active" : ""}
+          onClick={() => setTab("status")}
+        >
+          Status
         </button>
       </section>
 
@@ -268,6 +299,56 @@ export default function App() {
             <button onClick={sendMessage}>Senden</button>
           </div>
         </section>
+      )}
+
+      {tab === "status" && (
+        <>
+          <section className="card">
+            <h3>Mein Status</h3>
+
+            <div className="status-grid">
+              {quickStatus.map((item) => (
+                <button
+                  key={item}
+                  className={me.status === item ? "active" : ""}
+                  onClick={() => updateMyData({ status: item })}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+
+            <div className="battery-row">
+              <input
+                type="number"
+                min="0"
+                max="100"
+                placeholder="Akku %"
+                value={me.battery || ""}
+                onChange={(e) => updateMyData({ battery: e.target.value })}
+              />
+              <button onClick={() => updateMyData({ updatedAt: new Date().toISOString() })}>
+                Aktualisieren
+              </button>
+            </div>
+          </section>
+
+          <section className="status-cards">
+            <div className="status-card">
+              <span>Du</span>
+              <h3>{me.status || "Noch kein Status"}</h3>
+              <p>🔋 {me.battery ? `${me.battery}%` : "unbekannt"}</p>
+              <small>{timeText(me.updatedAt)}</small>
+            </div>
+
+            <div className="status-card">
+              <span>{partner}</span>
+              <h3>{other.status || "Noch kein Status"}</h3>
+              <p>🔋 {other.battery ? `${other.battery}%` : "unbekannt"}</p>
+              <small>{timeText(other.updatedAt)}</small>
+            </div>
+          </section>
+        </>
       )}
     </main>
   );
