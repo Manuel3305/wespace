@@ -7,6 +7,7 @@ body {
   font-family: system-ui, sans-serif;
   background: radial-gradient(circle at top, #ffd6e7, #211326 55%, #07040a);
   color: white;
+  min-height: 100vh;
 }
 
 button,
@@ -19,12 +20,12 @@ textarea {
   width: min(430px, 100%);
   min-height: 100vh;
   margin: auto;
-  padding: 24px 16px;
+  padding: 18px 14px 24px;
 }
 
 .hero {
   text-align: center;
-  padding: 26px 8px 20px;
+  padding: 18px 8px 14px;
 }
 
 .tag {
@@ -58,13 +59,13 @@ h3 {
 }
 
 .card {
-  margin-bottom: 14px;
-  padding: 18px;
-  border-radius: 26px;
-  background: rgba(255, 255, 255, 0.13);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.25);
+  margin-bottom: 12px;
+  padding: 16px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.22);
 }
 
 .card p,
@@ -89,24 +90,29 @@ h3 {
 .tabs {
   display: grid;
   gap: 10px;
-  margin-bottom: 16px;
-  padding: 6px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.1);
+  margin-bottom: 14px;
+  padding: 5px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .tabs.three {
   grid-template-columns: 1fr 1fr 1fr;
 }
 
+.tabs.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .tabs button {
   position: relative;
   border: 0;
-  border-radius: 17px;
-  padding: 13px 8px;
+  border-radius: 16px;
+  padding: 11px 8px;
   color: white;
   font-weight: 700;
   background: transparent;
+  font-size: 14px;
 }
 
 .tabs button.active {
@@ -145,10 +151,10 @@ h3 {
 
 .heart {
   width: 100%;
-  height: 92px;
+  height: 84px;
   border: 0;
-  border-radius: 24px;
-  font-size: 48px;
+  border-radius: 22px;
+  font-size: 44px;
   color: white;
   background: rgba(255, 255, 255, 0.16);
 }
@@ -158,35 +164,62 @@ h3 {
 }
 
 .moods,
-.status-grid {
+.status-grid,
+.action-buttons {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, 1fr);
   gap: 9px;
 }
 
 .moods button,
-.status-grid button {
+.status-grid button,
+.action-buttons button {
   border: 0;
-  padding: 13px;
+  padding: 14px;
   border-radius: 18px;
   color: white;
   background: rgba(255, 255, 255, 0.14);
+  min-height: 60px;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .moods button.active,
-.status-grid button.active {
+.status-grid button.active,
+.action-buttons button.active {
   background: rgba(255, 255, 255, 0.34);
 }
 
 .mini-stats,
 .moment-row,
-.status-cards {
+.status-cards,
+.pair-grid,
+.action-buttons {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   margin-top: 14px;
 }
 
+.pair-grid {
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 420px) {
+  .pair-grid,
+  .action-buttons,
+  .status-list {
+    grid-template-columns: 1fr;
+  }
+
+  .tabs.three {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+.person-card,
 .mini-stats div,
 .moment-row div,
 .status-card {
@@ -194,6 +227,125 @@ h3 {
   padding: 12px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.11);
+}
+
+.person-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.person-head strong {
+  font-size: 16px;
+}
+
+.person-head small {
+  opacity: 0.75;
+  font-size: 12px;
+}
+
+.status-list {
+  display: grid;
+  gap: 10px;
+}
+
+.status-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.status-list span {
+  opacity: 0.85;
+  font-size: 13px;
+}
+
+.moment-card textarea,
+.capsule-card textarea,
+.capsule-card input[type="date"] {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.moment-grid,
+.capsule-list {
+  display: grid;
+  gap: 10px;
+}
+
+.moment-box,
+.capsule-entry {
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.moment-box strong,
+.capsule-row strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+.moment-box p,
+.capsule-entry p {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.9;
+  line-height: 1.45;
+}
+
+.capsule-form {
+  display: grid;
+  gap: 10px;
+}
+
+.capsule-meta {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.capsule-save {
+  border: 0;
+  border-radius: 18px;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.22);
+  color: white;
+  font-weight: 700;
+}
+
+.capsule-entry small {
+  opacity: 0.7;
+  font-size: 12px;
+}
+
+.capsule-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.locked {
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.status-list strong {
+  font-size: 14px;
 }
 
 .mini-stats strong,
@@ -251,6 +403,33 @@ input {
   background: rgba(255, 255, 255, 0.14);
 }
 
+.action-group h3,
+.night-card p {
+  margin: 0 0 10px;
+}
+
+.night-card {
+  text-align: center;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255,255,255,0.24);
+}
+
+.offline-banner {
+  margin-bottom: 14px;
+  padding: 11px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 13px;
+  text-align: center;
+}
+
+.muted {
+  opacity: 0.7;
+  font-size: 13px;
+  margin-top: 10px;
+}
+
 textarea {
   min-height: 82px;
   resize: none;
@@ -269,7 +448,7 @@ input::placeholder {
 }
 
 .chat-card {
-  min-height: 540px;
+  min-height: 520px;
   display: flex;
   flex-direction: column;
 }
@@ -283,7 +462,7 @@ input::placeholder {
 }
 
 .chat-box {
-  height: 360px;
+  height: 300px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
