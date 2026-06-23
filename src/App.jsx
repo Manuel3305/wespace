@@ -46,6 +46,14 @@ const proximityOptions = [
   "☎️ Können wir kurz reden?",
 ];
 
+function getLocalDateKey(date = new Date()) {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 // Fix Leaflet icon urls (Vite import)
 try {
   delete L.Icon.Default.prototype._getIconUrl;
@@ -62,7 +70,7 @@ export default function App() {
   const [tab, setTab] = useState("home");
   const [user, setUser] = useState(localStorage.getItem("wespace_user") || "");
   const [data, setData] = useState({
-    currentDay: new Date().toISOString().slice(0, 10),
+    currentDay: getLocalDateKey(),
     timeCapsules: [],
     Manuel: { hearts: 0, mood: "", moment: "", status: "", battery: "", proximity: "", sleep: "" },
     Nela: { hearts: 0, mood: "", moment: "", status: "", battery: "", proximity: "", sleep: "" },
@@ -70,7 +78,7 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [capsuleText, setCapsuleText] = useState("");
-  const [capsuleDate, setCapsuleDate] = useState(new Date().toISOString().slice(0, 10));
+  const [capsuleDate, setCapsuleDate] = useState(getLocalDateKey());
   const [lastRead, setLastRead] = useState(Number(localStorage.getItem("wespace_last_read")) || 0);
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
@@ -134,7 +142,7 @@ export default function App() {
 
   // Reset local daily fields on startup when currentDay is outdated
   useEffect(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalDateKey();
     const cached = localStorage.getItem("wespace_status");
     if (!cached) return;
 
@@ -228,7 +236,7 @@ export default function App() {
       (snap) => {
         if (snap.exists()) {
           const remote = snap.data();
-          const today = new Date().toISOString().slice(0, 10);
+          const today = getLocalDateKey();
 
           // If currentDay differs, reset daily fields for both users
           if (remote.currentDay !== today) {
@@ -340,7 +348,7 @@ export default function App() {
   }
 
   async function updateMyData(newData) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalDateKey();
     const userData = {
       ...(data[user] || {}),
       ...newData,
@@ -382,7 +390,7 @@ export default function App() {
 
   async function saveCapsule() {
     if (!capsuleText.trim()) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalDateKey();
     const capsule = {
       id: `capsule-${Date.now()}`,
       owner: user,
@@ -487,6 +495,7 @@ export default function App() {
 
   const me = data[user] || {};
   const other = data[partner] || {};
+  const todayKey = getLocalDateKey();
 
   return (
     <main className="app">
@@ -606,7 +615,7 @@ export default function App() {
                       <strong>{entry.owner}</strong>
                       <small>{entry.targetDate}</small>
                     </div>
-                    {entry.targetDate <= new Date().toISOString().slice(0, 10) ? (
+                    {entry.targetDate <= todayKey ? (
                       <p>{entry.text}</p>
                     ) : (
                       <p className="locked">Noch verschlossen</p>
