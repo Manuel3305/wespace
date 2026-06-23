@@ -246,6 +246,74 @@ h3 {
   font-size: 12px;
 }
 
+.segment-switch {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 10px 0 14px;
+}
+
+.segment-switch button {
+  border: 0;
+  padding: 8px 6px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.06);
+  color: white;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.segment-switch button.active {
+  background: rgba(255,255,255,0.2);
+}
+
+/* Compact mobile-first card tweaks */
+@media (max-width: 420px) {
+  .card {
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .person-card {
+    padding: 10px;
+  }
+
+  .person-head strong {
+    font-size: 14px;
+  }
+
+  .person-head small {
+    font-size: 11px;
+  }
+
+  .action-buttons button,
+  .moods button,
+  .status-grid button {
+    padding: 10px;
+    min-height: 48px;
+    font-size: 13px;
+    border-radius: 12px;
+  }
+
+  .question-input {
+    min-height: 76px;
+    padding: 10px;
+  }
+
+  .question-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+}
+
+/* Ensure compact layout on slightly larger phones */
+@media (max-width: 360px) {
+  .segment-switch button {
+    font-size: 12px;
+    padding: 8px 4px;
+  }
+}
+
 .status-list {
   display: grid;
   gap: 10px;

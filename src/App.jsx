@@ -75,6 +75,17 @@ function getQuestionForDate(dateKey) {
   return dailyQuestions[index];
 }
 
+function createDailyQuestion(dayKey) {
+  return {
+    day: dayKey,
+    question: getQuestionForDate(dayKey),
+    answers: {
+      Manuel: "",
+      Nela: "",
+    },
+  };
+}
+
 function getLocalDateKey(date = new Date()) {
   const d = new Date(date);
   const year = d.getFullYear();
@@ -98,11 +109,13 @@ try {
 export default function App() {
   const [tab, setTab] = useState("home");
   const [user, setUser] = useState(localStorage.getItem("wespace_user") || "");
+  const [segment, setSegment] = useState("feeling");
   const [data, setData] = useState({
     currentDay: getLocalDateKey(),
+    dailyQuestion: createDailyQuestion(getLocalDateKey()),
     timeCapsules: [],
-    Manuel: { hearts: 0, mood: "", moment: "", question: "", status: "", battery: "", proximity: "", sleep: "" },
-    Nela: { hearts: 0, mood: "", moment: "", question: "", status: "", battery: "", proximity: "", sleep: "" },
+    Manuel: { hearts: 0, mood: "", moment: "", status: "", battery: "", proximity: "", sleep: "" },
+    Nela: { hearts: 0, mood: "", moment: "", status: "", battery: "", proximity: "", sleep: "" },
   });
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
@@ -127,6 +140,17 @@ export default function App() {
     const hours = Math.floor(diff / 60);
     if (hours === 1) return "vor 1 Stunde";
     return `vor ${hours} Stunden`;
+  }
+
+  function timeTextShort(iso) {
+    if (!iso) return "nicht aktualisiert";
+    const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+    if (diff < 1) return "gerade";
+    if (diff === 1) return "vor 1 Min.";
+    if (diff < 60) return `vor ${diff} Min.`;
+    const hours = Math.floor(diff / 60);
+    if (hours === 1) return "vor 1 Std.";
+    return `vor ${hours} Std.`;
   }
 
   // Helpers for local pending queues
@@ -178,17 +202,18 @@ export default function App() {
 
     try {
       const stored = JSON.parse(cached);
-      if (stored.currentDay !== today) {
+      const storedDay = stored.dailyQuestion?.day || stored.currentDay;
+      if (storedDay !== today) {
         const reset = {
           ...stored,
           currentDay: today,
+          dailyQuestion: createDailyQuestion(today),
           timeCapsules: stored.timeCapsules || [],
           Manuel: {
             ...(stored.Manuel || {}),
             hearts: 0,
             mood: "",
             moment: "",
-            question: "",
             status: "",
             battery: stored.Manuel?.battery || "",
             proximity: "",
@@ -200,7 +225,6 @@ export default function App() {
             hearts: 0,
             mood: "",
             moment: "",
-            question: "",
             status: "",
             battery: stored.Nela?.battery || "",
             proximity: "",
@@ -221,37 +245,49 @@ export default function App() {
     if (!isOnline) return;
     if (!firebaseAvailable || !db) return;
 
-    // flush updates
-    const pending = getPendingUpdates();
-    if (pending.length > 0) {
+    async function flushPendingData() {
       const statusRef = doc(db, "spaces", SPACE_ID, "data", "status");
-      pending.forEach(async (p) => {
-        try {
-          await setDoc(statusRef, p, { merge: true });
-        } catch (e) {
-          // keep it queued
+      const pending = getPendingUpdates();
+      if (pending.length > 0) {
+        const results = await Promise.all(
+          pending.map(async (p) => {
+            try {
+              await setDoc(statusRef, p, { merge: true });
+              return true;
+            } catch (e) {
+              return false;
+            }
+          })
+        );
+        if (results.every(Boolean)) {
+          setPendingUpdates([]);
         }
-      });
-      setPendingUpdates([]);
+      }
+
+      const msgs = getPendingMessages();
+      if (msgs.length > 0) {
+        const messagesRef = collection(db, "spaces", SPACE_ID, "messages");
+        const msgResults = await Promise.all(
+          msgs.map(async (m) => {
+            try {
+              await addDoc(messagesRef, {
+                name: m.name,
+                text: m.text,
+                createdAt: serverTimestamp(),
+              });
+              return true;
+            } catch (e) {
+              return false;
+            }
+          })
+        );
+        if (msgResults.every(Boolean)) {
+          setPendingMessages([]);
+        }
+      }
     }
 
-    // flush messages
-    const msgs = getPendingMessages();
-    if (msgs.length > 0) {
-      const messagesRef = collection(db, "spaces", SPACE_ID, "messages");
-      msgs.forEach(async (m) => {
-        try {
-          await addDoc(messagesRef, {
-            name: m.name,
-            text: m.text,
-            createdAt: serverTimestamp(),
-          });
-        } catch (e) {
-          // keep it queued
-        }
-      });
-      setPendingMessages([]);
-    }
+    flushPendingData();
   }, [isOnline]);
 
   // Subscribe to remote status (or load cached)
@@ -270,18 +306,19 @@ export default function App() {
           const remote = snap.data();
           const today = getLocalDateKey();
 
-          // If currentDay differs, reset daily fields for both users
-          if (remote.currentDay !== today) {
+          // If the saved daily question is for a different day, reset the shared daily question for today.
+          const remoteDay = remote.dailyQuestion?.day || remote.currentDay;
+          if (remoteDay !== today) {
             const reset = {
               ...remote,
               currentDay: today,
+              dailyQuestion: createDailyQuestion(today),
               timeCapsules: remote.timeCapsules || [],
               Manuel: {
                 ...(remote.Manuel || {}),
                 hearts: 0,
                 mood: "",
                 moment: "",
-                question: "",
                 status: "",
                 battery: remote.Manuel?.battery || "",
                 proximity: "",
@@ -293,7 +330,6 @@ export default function App() {
                 hearts: 0,
                 mood: "",
                 moment: "",
-                question: "",
                 status: "",
                 battery: remote.Nela?.battery || "",
                 proximity: "",
@@ -308,22 +344,24 @@ export default function App() {
             });
 
             setData({
-              currentDay: today,
-              timeCapsules: reset.timeCapsules || [],
-              Manuel: { hearts: 0, mood: "", moment: "", question: "", status: "", battery: reset.Manuel?.battery || "", proximity: "", sleep: "" },
-              Nela: { hearts: 0, mood: "", moment: "", question: "", status: "", battery: reset.Nela?.battery || "", proximity: "", sleep: "" },
               ...reset,
+              currentDay: today,
+              dailyQuestion: reset.dailyQuestion,
+              timeCapsules: reset.timeCapsules || [],
+              Manuel: { hearts: 0, mood: "", moment: "", status: "", battery: reset.Manuel?.battery || "", proximity: "", sleep: "" },
+              Nela: { hearts: 0, mood: "", moment: "", status: "", battery: reset.Nela?.battery || "", proximity: "", sleep: "" },
             });
             localStorage.setItem("wespace_status", JSON.stringify(reset));
             return;
           }
 
           setData({
-            currentDay: remote.currentDay || today,
-            timeCapsules: remote.timeCapsules || [],
-            Manuel: { hearts: 0, mood: "", moment: "", question: remote.Manuel?.question || "", status: "", battery: remote.Manuel?.battery || "", proximity: remote.Manuel?.proximity || "", sleep: remote.Manuel?.sleep || "" },
-            Nela: { hearts: 0, mood: "", moment: "", question: remote.Nela?.question || "", status: "", battery: remote.Nela?.battery || "", proximity: remote.Nela?.proximity || "", sleep: remote.Nela?.sleep || "" },
             ...remote,
+            currentDay: remote.currentDay || today,
+            dailyQuestion: remote.dailyQuestion?.day === today ? remote.dailyQuestion : createDailyQuestion(today),
+            timeCapsules: remote.timeCapsules || [],
+            Manuel: { hearts: 0, mood: "", moment: "", status: "", battery: remote.Manuel?.battery || "", proximity: remote.Manuel?.proximity || "", sleep: remote.Manuel?.sleep || "" },
+            Nela: { hearts: 0, mood: "", moment: "", status: "", battery: remote.Nela?.battery || "", proximity: remote.Nela?.proximity || "", sleep: remote.Nela?.sleep || "" },
           });
           localStorage.setItem("wespace_status", JSON.stringify(remote));
         }
@@ -458,6 +496,43 @@ export default function App() {
     }
   }
 
+  async function saveDailyAnswer(answer) {
+    const today = getLocalDateKey();
+    const dailyQuestion = data.dailyQuestion?.day === today ? data.dailyQuestion : createDailyQuestion(today);
+    const updated = {
+      ...data,
+      currentDay: today,
+      dailyQuestion: {
+        ...dailyQuestion,
+        day: today,
+        question: getQuestionForDate(today),
+        answers: {
+          ...dailyQuestion.answers,
+          [user]: answer,
+        },
+      },
+    };
+
+    setData(updated);
+    localStorage.setItem("wespace_status", JSON.stringify(updated));
+
+    if (!firebaseAvailable || !db || !isOnline) {
+      const pending = getPendingUpdates();
+      pending.push(updated);
+      setPendingUpdates(pending);
+      return;
+    }
+
+    try {
+      const statusRef = doc(db, "spaces", SPACE_ID, "data", "status");
+      await setDoc(statusRef, updated, { merge: true });
+    } catch (e) {
+      const pending = getPendingUpdates();
+      pending.push(updated);
+      setPendingUpdates(pending);
+    }
+  }
+
   async function sendMessage() {
     if (!text.trim()) return;
 
@@ -532,8 +607,8 @@ export default function App() {
   const todayKey = getLocalDateKey();
 
   useEffect(() => {
-    setQuestionDraft(me.question || "");
-  }, [user, me.question]);
+    setQuestionDraft(data.dailyQuestion?.answers?.[user] || "");
+  }, [user, data.dailyQuestion?.day, data.dailyQuestion?.answers]);
 
   return (
     <main className="app">
@@ -565,7 +640,7 @@ export default function App() {
                 <div key={name} className="person-card">
                   <div className="person-head">
                     <strong>{name}</strong>
-                    <small>{timeText(person.updatedAt)}</small>
+                    <small>geändert {timeTextShort(person.updatedAt)}</small>
                   </div>
                   <div className="status-list">
                     <div><span>Stimmung</span><strong>{person.mood || "—"}</strong></div>
@@ -578,79 +653,98 @@ export default function App() {
             })}
           </section>
 
-          <section className="card question-card">
-            <h3>Frage des Tages</h3>
-            <p className="question-text">{getQuestionForDate(todayKey)}</p>
-            <div className="question-grid">
-              <div className="question-box">
-                <strong>Manuel</strong>
-                <p>{data.Manuel?.question || "Noch nichts geantwortet."}</p>
+          <div className="segment-switch">
+            <button className={segment === 'feeling' ? 'active' : ''} onClick={() => setSegment('feeling')}>Gefühl</button>
+            <button className={segment === 'proximity' ? 'active' : ''} onClick={() => setSegment('proximity')}>Nähe</button>
+            <button className={segment === 'question' ? 'active' : ''} onClick={() => setSegment('question')}>Frage</button>
+            <button className={segment === 'moment' ? 'active' : ''} onClick={() => setSegment('moment')}>Moment</button>
+          </div>
+
+          {segment === 'question' && (
+            <section className="card question-card">
+              <h3>Frage des Tages</h3>
+              <p className="question-text">{data.dailyQuestion?.question || getQuestionForDate(todayKey)}</p>
+              <div className="question-grid">
+                <div className="question-box">
+                  <strong>Manuel</strong>
+                  <p>{data.dailyQuestion?.answers?.Manuel || "Noch nichts geantwortet."}</p>
+                </div>
+                <div className="question-box">
+                  <strong>Nela</strong>
+                  <p>{data.dailyQuestion?.answers?.Nela || "Noch nichts geantwortet."}</p>
+                </div>
               </div>
-              <div className="question-box">
-                <strong>Nela</strong>
-                <p>{data.Nela?.question || "Noch nichts geantwortet."}</p>
-              </div>
-            </div>
-            <textarea
-              className="question-input"
-              placeholder="Deine Antwort hier"
-              value={questionDraft}
-              onChange={(e) => setQuestionDraft(e.target.value)}
-            />
-            <button className="question-save" onClick={() => updateMyData({ question: questionDraft })}>Antwort speichern</button>
-          </section>
-
-          <section className="card action-group">
-            <h3>Wie geht's dir?</h3>
-            <div className="action-buttons">
-              {moodOptions.map((item) => (
-                <button key={item} className={me.mood === item ? "active" : ""} onClick={() => updateMyData({ mood: item })}>{item}</button>
-              ))}
-            </div>
-          </section>
-
-          <section className="card action-group">
-            <h3>Was machst du gerade?</h3>
-            <div className="action-buttons">
-              {activityOptions.map((item) => (
-                <button key={item} className={me.status === item ? "active" : ""} onClick={() => updateMyData({ status: item })}>{item}</button>
-              ))}
-            </div>
-          </section>
-
-          <section className="card action-group">
-            <h3>Was brauchst du gerade?</h3>
-            <div className="action-buttons">
-              {proximityOptions.map((item) => (
-                <button key={item} className={me.proximity === item ? "active" : ""} onClick={() => updateMyData({ proximity: item })}>{item}</button>
-              ))}
-            </div>
-          </section>
-
-          {me.proximity === "🌙 Gute Nacht" && other.proximity === "🌙 Gute Nacht" && (
-            <section className="card night-card">
-              <p>⭐ Ihr schlaft beide gerade</p>
+              <textarea
+                className="question-input"
+                placeholder="Deine Antwort hier"
+                value={questionDraft}
+                onChange={(e) => setQuestionDraft(e.target.value)}
+              />
+              <button className="question-save" onClick={() => saveDailyAnswer(questionDraft)}>Antwort speichern</button>
             </section>
           )}
 
-          <section className="card moment-card">
-            <h3>Tagesmomente</h3>
-            <textarea
-              placeholder="Kurz deinen Moment für heute schreiben..."
-              value={me.moment || ""}
-              onChange={(e) => updateMyData({ moment: e.target.value })}
-            />
-            <div className="moment-grid">
-              <div className="moment-box">
-                <strong>Manuel</strong>
-                <p>{data.Manuel?.moment || "Noch nichts."}</p>
+          {segment === 'feeling' && (
+            <>
+              <section className="card action-group">
+                <h3>Wie geht's dir?</h3>
+                <div className="action-buttons">
+                  {moodOptions.map((item) => (
+                    <button key={item} className={me.mood === item ? "active" : ""} onClick={() => updateMyData({ mood: item })}>{item}</button>
+                  ))}
+                </div>
+              </section>
+
+              <section className="card action-group">
+                <h3>Was machst du gerade?</h3>
+                <div className="action-buttons">
+                  {activityOptions.map((item) => (
+                    <button key={item} className={me.status === item ? "active" : ""} onClick={() => updateMyData({ status: item })}>{item}</button>
+                  ))}
+                </div>
+              </section>
+            </>
+          )}
+
+          {segment === 'proximity' && (
+            <>
+              <section className="card action-group">
+                <h3>Was brauchst du gerade?</h3>
+                <div className="action-buttons proximity-buttons">
+                  {proximityOptions.map((item) => (
+                    <button key={item} className={me.proximity === item ? "active" : ""} onClick={() => updateMyData({ proximity: item })}>{item}</button>
+                  ))}
+                </div>
+              </section>
+
+              {me.proximity === "🌙 Gute Nacht" && other.proximity === "🌙 Gute Nacht" && (
+                <section className="card night-card">
+                  <p>⭐ Ihr schlaft beide gerade</p>
+                </section>
+              )}
+            </>
+          )}
+
+          {segment === 'moment' && (
+            <section className="card moment-card">
+              <h3>Tagesmomente</h3>
+              <textarea
+                placeholder="Kurz deinen Moment für heute schreiben..."
+                value={me.moment || ""}
+                onChange={(e) => updateMyData({ moment: e.target.value })}
+              />
+              <div className="moment-grid">
+                <div className="moment-box">
+                  <strong>Manuel</strong>
+                  <p>{data.Manuel?.moment || "Noch nichts."}</p>
+                </div>
+                <div className="moment-box">
+                  <strong>Nela</strong>
+                  <p>{data.Nela?.moment || "Noch nichts."}</p>
+                </div>
               </div>
-              <div className="moment-box">
-                <strong>Nela</strong>
-                <p>{data.Nela?.moment || "Noch nichts."}</p>
-              </div>
-            </div>
-          </section>
+            </section>
+          )}
 
           <section className="card capsule-card">
             <h3>Zeitkapsel</h3>
