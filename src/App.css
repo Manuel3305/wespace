@@ -344,6 +344,49 @@ h3 {
   font-style: italic;
 }
 
+.question-card .question-text,
+.question-card .question-box p {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.question-card {
+  display: grid;
+  gap: 12px;
+}
+
+.question-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.question-box {
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.question-input {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.question-save {
+  border: 0;
+  border-radius: 18px;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.22);
+  color: white;
+  font-weight: 700;
+}
+
+@media (max-width: 420px) {
+  .question-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .status-list strong {
   font-size: 14px;
 }

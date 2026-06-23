@@ -46,6 +46,35 @@ const proximityOptions = [
   "☎️ Können wir kurz reden?",
 ];
 
+const dailyQuestions = [
+  "Was war heute dein schönster Moment?",
+  "Was vermisst du heute an mir?",
+  "Was würdest du mir erzählen, wenn ich gerade neben dir wäre?",
+  "Schick mir gedanklich ein Bild von deinem Tag.",
+  "Wofür bist du heute dankbar?",
+  "Was war heute schwer?",
+  "Was sollen wir machen, wenn wir uns wiedersehen?",
+  "Was hat dich heute zum Lächeln gebracht?",
+  "Was möchtest du mir morgen erzählen?",
+  "Welcher Song passt heute zu dir?",
+  "Womit hast du dir heute eine Freude gemacht?",
+  "Was hast du heute gelernt?",
+  "Welche kleine Sache machte deinen Tag besser?",
+  "Was geht dir heute im Herzen herum?",
+  "Für wen oder was denkst du heute besonders oft an mich?",
+  "Was würdest du heute mit mir teilen, wenn ich neben dir wäre?",
+  "Welcher Wunsch begleitet dich heute?",
+  "Worauf freust du dich morgen?",
+  "Welche Situation heute möchtest du behalten?",
+  "Was ist heute anders als gestern?",
+];
+
+function getQuestionForDate(dateKey) {
+  const parts = dateKey.split("-").map(Number);
+  const index = (parts[0] * 10000 + parts[1] * 100 + parts[2]) % dailyQuestions.length;
+  return dailyQuestions[index];
+}
+
 function getLocalDateKey(date = new Date()) {
   const d = new Date(date);
   const year = d.getFullYear();
@@ -72,13 +101,14 @@ export default function App() {
   const [data, setData] = useState({
     currentDay: getLocalDateKey(),
     timeCapsules: [],
-    Manuel: { hearts: 0, mood: "", moment: "", status: "", battery: "", proximity: "", sleep: "" },
-    Nela: { hearts: 0, mood: "", moment: "", status: "", battery: "", proximity: "", sleep: "" },
+    Manuel: { hearts: 0, mood: "", moment: "", question: "", status: "", battery: "", proximity: "", sleep: "" },
+    Nela: { hearts: 0, mood: "", moment: "", question: "", status: "", battery: "", proximity: "", sleep: "" },
   });
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [capsuleText, setCapsuleText] = useState("");
   const [capsuleDate, setCapsuleDate] = useState(getLocalDateKey());
+  const [questionDraft, setQuestionDraft] = useState("");
   const [lastRead, setLastRead] = useState(Number(localStorage.getItem("wespace_last_read")) || 0);
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
@@ -158,6 +188,7 @@ export default function App() {
             hearts: 0,
             mood: "",
             moment: "",
+            question: "",
             status: "",
             battery: stored.Manuel?.battery || "",
             proximity: "",
@@ -169,6 +200,7 @@ export default function App() {
             hearts: 0,
             mood: "",
             moment: "",
+            question: "",
             status: "",
             battery: stored.Nela?.battery || "",
             proximity: "",
@@ -249,6 +281,7 @@ export default function App() {
                 hearts: 0,
                 mood: "",
                 moment: "",
+                question: "",
                 status: "",
                 battery: remote.Manuel?.battery || "",
                 proximity: "",
@@ -260,6 +293,7 @@ export default function App() {
                 hearts: 0,
                 mood: "",
                 moment: "",
+                question: "",
                 status: "",
                 battery: remote.Nela?.battery || "",
                 proximity: "",
@@ -276,8 +310,8 @@ export default function App() {
             setData({
               currentDay: today,
               timeCapsules: reset.timeCapsules || [],
-              Manuel: { hearts: 0, mood: "", moment: "", status: "", battery: reset.Manuel?.battery || "", proximity: "", sleep: "" },
-              Nela: { hearts: 0, mood: "", moment: "", status: "", battery: reset.Nela?.battery || "", proximity: "", sleep: "" },
+              Manuel: { hearts: 0, mood: "", moment: "", question: "", status: "", battery: reset.Manuel?.battery || "", proximity: "", sleep: "" },
+              Nela: { hearts: 0, mood: "", moment: "", question: "", status: "", battery: reset.Nela?.battery || "", proximity: "", sleep: "" },
               ...reset,
             });
             localStorage.setItem("wespace_status", JSON.stringify(reset));
@@ -287,8 +321,8 @@ export default function App() {
           setData({
             currentDay: remote.currentDay || today,
             timeCapsules: remote.timeCapsules || [],
-            Manuel: { hearts: 0, mood: "", moment: "", status: "", battery: remote.Manuel?.battery || "", proximity: remote.Manuel?.proximity || "", sleep: remote.Manuel?.sleep || "" },
-            Nela: { hearts: 0, mood: "", moment: "", status: "", battery: remote.Nela?.battery || "", proximity: remote.Nela?.proximity || "", sleep: remote.Nela?.sleep || "" },
+            Manuel: { hearts: 0, mood: "", moment: "", question: remote.Manuel?.question || "", status: "", battery: remote.Manuel?.battery || "", proximity: remote.Manuel?.proximity || "", sleep: remote.Manuel?.sleep || "" },
+            Nela: { hearts: 0, mood: "", moment: "", question: remote.Nela?.question || "", status: "", battery: remote.Nela?.battery || "", proximity: remote.Nela?.proximity || "", sleep: remote.Nela?.sleep || "" },
             ...remote,
           });
           localStorage.setItem("wespace_status", JSON.stringify(remote));
@@ -497,6 +531,10 @@ export default function App() {
   const other = data[partner] || {};
   const todayKey = getLocalDateKey();
 
+  useEffect(() => {
+    setQuestionDraft(me.question || "");
+  }, [user, me.question]);
+
   return (
     <main className="app">
       <section className="hero">
@@ -538,6 +576,28 @@ export default function App() {
                 </div>
               );
             })}
+          </section>
+
+          <section className="card question-card">
+            <h3>Frage des Tages</h3>
+            <p className="question-text">{getQuestionForDate(todayKey)}</p>
+            <div className="question-grid">
+              <div className="question-box">
+                <strong>Manuel</strong>
+                <p>{data.Manuel?.question || "Noch nichts geantwortet."}</p>
+              </div>
+              <div className="question-box">
+                <strong>Nela</strong>
+                <p>{data.Nela?.question || "Noch nichts geantwortet."}</p>
+              </div>
+            </div>
+            <textarea
+              className="question-input"
+              placeholder="Deine Antwort hier"
+              value={questionDraft}
+              onChange={(e) => setQuestionDraft(e.target.value)}
+            />
+            <button className="question-save" onClick={() => updateMyData({ question: questionDraft })}>Antwort speichern</button>
           </section>
 
           <section className="card action-group">
