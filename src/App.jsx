@@ -17,6 +17,18 @@ import L from "leaflet";
 
 const SPACE_ID = "ManuelNela";
 
+const EMPTY_PERSON = {
+  hearts: 0,
+  mood: "",
+  status: "",
+  proximity: "",
+  sleep: "",
+  moment: "",
+  battery: "",
+  updatedAt: "",
+  location: null,
+};
+
 const partnerOf = {
   Manuel: "Nela",
   Nela: "Manuel",
@@ -43,35 +55,52 @@ const proximityOptions = [
   "🫂 Brauche Nähe",
   "😔 Vermisse dich",
   "🌙 Gute Nacht",
-  "☎️ Können wir kurz reden?",
+  "☎️ Kurz reden?",
 ];
 
 const dailyQuestions = [
   "Was war heute dein schönster Moment?",
   "Was vermisst du heute an mir?",
   "Was würdest du mir erzählen, wenn ich gerade neben dir wäre?",
-  "Schick mir gedanklich ein Bild von deinem Tag.",
   "Wofür bist du heute dankbar?",
   "Was war heute schwer?",
   "Was sollen wir machen, wenn wir uns wiedersehen?",
   "Was hat dich heute zum Lächeln gebracht?",
-  "Was möchtest du mir morgen erzählen?",
   "Welcher Song passt heute zu dir?",
-  "Womit hast du dir heute eine Freude gemacht?",
-  "Was hast du heute gelernt?",
-  "Welche kleine Sache machte deinen Tag besser?",
   "Was geht dir heute im Herzen herum?",
-  "Für wen oder was denkst du heute besonders oft an mich?",
-  "Was würdest du heute mit mir teilen, wenn ich neben dir wäre?",
-  "Welcher Wunsch begleitet dich heute?",
   "Worauf freust du dich morgen?",
   "Welche Situation heute möchtest du behalten?",
   "Was ist heute anders als gestern?",
 ];
 
-function getQuestionForDate(dateKey) {
-  const parts = dateKey.split("-").map(Number);
-  const index = (parts[0] * 10000 + parts[1] * 100 + parts[2]) % dailyQuestions.length;
+try {
+  delete L.Icon.Default.prototype._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: new URL(
+      "leaflet/dist/images/marker-icon-2x.png",
+      import.meta.url
+    ).href,
+    iconUrl: new URL("leaflet/dist/images/marker-icon.png", import.meta.url)
+      .href,
+    shadowUrl: new URL("leaflet/dist/images/marker-shadow.png", import.meta.url)
+      .href,
+  });
+} catch {
+  // ignore
+}
+
+function getLocalDateKey(date = new Date()) {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getQuestionForDate(dayKey) {
+  const parts = dayKey.split("-").map(Number);
+  const index =
+    (parts[0] * 10000 + parts[1] * 100 + parts[2]) % dailyQuestions.length;
   return dailyQuestions[index];
 }
 
@@ -86,502 +115,441 @@ function createDailyQuestion(dayKey) {
   };
 }
 
-function getLocalDateKey(date = new Date()) {
-  const d = new Date(date);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+function createDefaultData() {
+  const today = getLocalDateKey();
+
+  return {
+    currentDay: today,
+    dailyQuestion: createDailyQuestion(today),
+    timeCapsules: [],
+    Manuel: { ...EMPTY_PERSON },
+    Nela: { ...EMPTY_PERSON },
+  };
 }
 
-// Fix Leaflet icon urls (Vite import)
-try {
-  delete L.Icon.Default.prototype._getIconUrl;
-  L.Icon.Default.mergeOptions({
-    iconRetinaUrl: new URL("leaflet/dist/images/marker-icon-2x.png", import.meta.url).href,
-    iconUrl: new URL("leaflet/dist/images/marker-icon.png", import.meta.url).href,
-    shadowUrl: new URL("leaflet/dist/images/marker-shadow.png", import.meta.url).href,
-  });
-} catch (e) {
-  // ignore in environments without leaflet installed
+function normalizePerson(person = {}) {
+  return {
+    ...EMPTY_PERSON,
+    ...person,
+    location: person.location || null,
+  };
+}
+
+function normalizeData(raw = {}) {
+  const today = getLocalDateKey();
+  const savedDay = raw.dailyQuestion?.day || raw.currentDay || today;
+  const isNewDay = savedDay !== today;
+
+  return {
+    ...raw,
+    currentDay: today,
+    dailyQuestion: isNewDay
+      ? createDailyQuestion(today)
+      : raw.dailyQuestion || createDailyQuestion(today),
+    timeCapsules: raw.timeCapsules || [],
+    Manuel: {
+      ...normalizePerson(raw.Manuel),
+      ...(isNewDay
+        ? {
+            hearts: 0,
+            mood: "",
+            status: "",
+            proximity: "",
+            sleep: "",
+            moment: "",
+          }
+        : {}),
+    },
+    Nela: {
+      ...normalizePerson(raw.Nela),
+      ...(isNewDay
+        ? {
+            hearts: 0,
+            mood: "",
+            status: "",
+            proximity: "",
+            sleep: "",
+            moment: "",
+          }
+        : {}),
+    },
+  };
+}
+
+function minutesSince(iso) {
+  if (!iso) return null;
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+}
+
+function statusText(iso) {
+  const diff = minutesSince(iso);
+
+  if (diff === null) return "noch nichts geteilt";
+  if (diff < 1) return "gerade geändert";
+  if (diff === 1) return "vor 1 Min. geändert";
+  if (diff < 60) return `vor ${diff} Min. geändert`;
+
+  const hours = Math.floor(diff / 60);
+  if (hours === 1) return "vor 1 Std. geändert";
+  if (hours < 24) return `vor ${hours} Std. geändert`;
+
+  return "heute noch nichts geteilt";
+}
+
+function statusDot(iso) {
+  const diff = minutesSince(iso);
+
+  if (diff === null) return "idle";
+  if (diff < 60) return "fresh";
+  if (diff < 24 * 60) return "old";
+  return "idle";
+}
+
+function timeText(iso) {
+  const diff = minutesSince(iso);
+
+  if (diff === null) return "nicht geteilt";
+  if (diff < 1) return "gerade eben";
+  if (diff === 1) return "vor 1 Minute";
+  if (diff < 60) return `vor ${diff} Minuten`;
+
+  const hours = Math.floor(diff / 60);
+  if (hours === 1) return "vor 1 Stunde";
+  return `vor ${hours} Stunden`;
+}
+
+function haversineKm(a, b) {
+  if (!a || !b) return null;
+
+  const toRad = (value) => (value * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+
+  const x =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(a.lat)) *
+      Math.cos(toRad(b.lat)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+
+  return Math.round(R * (2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x))));
 }
 
 export default function App() {
   const [tab, setTab] = useState("home");
   const [user, setUser] = useState(localStorage.getItem("wespace_user") || "");
-  const [segment, setSegment] = useState("feeling");
-  const [data, setData] = useState({
-    currentDay: getLocalDateKey(),
-    dailyQuestion: createDailyQuestion(getLocalDateKey()),
-    timeCapsules: [],
-    Manuel: { hearts: 0, mood: "", moment: "", status: "", battery: "", proximity: "", sleep: "" },
-    Nela: { hearts: 0, mood: "", moment: "", status: "", battery: "", proximity: "", sleep: "" },
-  });
+  const [data, setData] = useState(createDefaultData);
   const [messages, setMessages] = useState([]);
-  const [text, setText] = useState("");
+  const [messageText, setMessageText] = useState("");
+  const [questionDraft, setQuestionDraft] = useState("");
   const [capsuleText, setCapsuleText] = useState("");
   const [capsuleDate, setCapsuleDate] = useState(getLocalDateKey());
-  const [questionDraft, setQuestionDraft] = useState("");
-  const [lastRead, setLastRead] = useState(Number(localStorage.getItem("wespace_last_read")) || 0);
-  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true
+  );
+  const [lastRead, setLastRead] = useState(
+    Number(localStorage.getItem("wespace_last_read")) || 0
+  );
+  const [notification, setNotification] = useState("");
 
   const chatEndRef = useRef(null);
-  const partner = partnerOf[user];
+  const notificationTimer = useRef(null);
 
-  function timeText(iso) {
-    if (!iso) return "Noch nicht aktualisiert";
+  const partner = partnerOf[user] || "Nela";
+  const me = data[user] || EMPTY_PERSON;
+  const other = data[partner] || EMPTY_PERSON;
+  const todayKey = getLocalDateKey();
 
-    const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  const unread =
+    tab === "chat"
+      ? 0
+      : Math.max(
+          0,
+          messages.filter((message) => message.name !== user).length - lastRead
+        );
 
-    if (diff < 1) return "gerade eben";
-    if (diff === 1) return "vor 1 Minute";
-    if (diff < 60) return `vor ${diff} Minuten`;
+  const distanceKm = haversineKm(data.Manuel?.location, data.Nela?.location);
 
-    const hours = Math.floor(diff / 60);
-    if (hours === 1) return "vor 1 Stunde";
-    return `vor ${hours} Stunden`;
-  }
-
-  function timeTextShort(iso) {
-    if (!iso) return "nicht aktualisiert";
-    const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-    if (diff < 1) return "gerade";
-    if (diff === 1) return "vor 1 Min.";
-    if (diff < 60) return `vor ${diff} Min.`;
-    const hours = Math.floor(diff / 60);
-    if (hours === 1) return "vor 1 Std.";
-    return `vor ${hours} Std.`;
-  }
-
-  // Helpers for local pending queues
-  function getPendingUpdates() {
-    try {
-      return JSON.parse(localStorage.getItem("wespace_pending_updates") || "[]");
-    } catch (e) {
-      return [];
-    }
-  }
-
-  function setPendingUpdates(list) {
-    localStorage.setItem("wespace_pending_updates", JSON.stringify(list));
-  }
-
-  function getPendingMessages() {
-    try {
-      return JSON.parse(localStorage.getItem("wespace_pending_messages") || "[]");
-    } catch (e) {
-      return [];
-    }
-  }
-
-  function setPendingMessages(list) {
-    localStorage.setItem("wespace_pending_messages", JSON.stringify(list));
-  }
-
-  // Listen for online/offline
   useEffect(() => {
-    function onOnline() {
+    const cached = localStorage.getItem("wespace_status");
+    if (cached) {
+      try {
+        setData(normalizeData(JSON.parse(cached)));
+      } catch {
+        setData(createDefaultData());
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    function handleOnline() {
       setIsOnline(true);
     }
-    function onOffline() {
+
+    function handleOffline() {
       setIsOnline(false);
     }
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
     return () => {
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("offline", onOffline);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
     };
   }, []);
 
-  // Reset local daily fields on startup when currentDay is outdated
   useEffect(() => {
-    const today = getLocalDateKey();
-    const cached = localStorage.getItem("wespace_status");
-    if (!cached) return;
-
-    try {
-      const stored = JSON.parse(cached);
-      const storedDay = stored.dailyQuestion?.day || stored.currentDay;
-      if (storedDay !== today) {
-        const reset = {
-          ...stored,
-          currentDay: today,
-          dailyQuestion: createDailyQuestion(today),
-          timeCapsules: stored.timeCapsules || [],
-          Manuel: {
-            ...(stored.Manuel || {}),
-            hearts: 0,
-            mood: "",
-            moment: "",
-            status: "",
-            battery: stored.Manuel?.battery || "",
-            proximity: "",
-            sleep: "",
-            updatedAt: new Date().toISOString(),
-          },
-          Nela: {
-            ...(stored.Nela || {}),
-            hearts: 0,
-            mood: "",
-            moment: "",
-            status: "",
-            battery: stored.Nela?.battery || "",
-            proximity: "",
-            sleep: "",
-            updatedAt: new Date().toISOString(),
-          },
-        };
-        setData(reset);
-        localStorage.setItem("wespace_status", JSON.stringify(reset));
-      }
-    } catch (e) {
-      // ignore invalid cached data
-    }
-  }, []);
-
-  // Flush pending when back online
-  useEffect(() => {
-    if (!isOnline) return;
     if (!firebaseAvailable || !db) return;
 
-    async function flushPendingData() {
-      const statusRef = doc(db, "spaces", SPACE_ID, "data", "status");
-      const pending = getPendingUpdates();
-      if (pending.length > 0) {
-        const results = await Promise.all(
-          pending.map(async (p) => {
-            try {
-              await setDoc(statusRef, p, { merge: true });
-              return true;
-            } catch (e) {
-              return false;
-            }
-          })
-        );
-        if (results.every(Boolean)) {
-          setPendingUpdates([]);
-        }
-      }
-
-      const msgs = getPendingMessages();
-      if (msgs.length > 0) {
-        const messagesRef = collection(db, "spaces", SPACE_ID, "messages");
-        const msgResults = await Promise.all(
-          msgs.map(async (m) => {
-            try {
-              await addDoc(messagesRef, {
-                name: m.name,
-                text: m.text,
-                createdAt: serverTimestamp(),
-              });
-              return true;
-            } catch (e) {
-              return false;
-            }
-          })
-        );
-        if (msgResults.every(Boolean)) {
-          setPendingMessages([]);
-        }
-      }
-    }
-
-    flushPendingData();
-  }, [isOnline]);
-
-  // Subscribe to remote status (or load cached)
-  useEffect(() => {
-    if (!firebaseAvailable || !db) {
-      const cached = localStorage.getItem("wespace_status");
-      if (cached) setData(JSON.parse(cached));
-      return;
-    }
-
     const statusRef = doc(db, "spaces", SPACE_ID, "data", "status");
+
     return onSnapshot(
       statusRef,
-      (snap) => {
-        if (snap.exists()) {
-          const remote = snap.data();
-          const today = getLocalDateKey();
+      async (snap) => {
+        if (!snap.exists()) {
+          const fresh = createDefaultData();
+          setData(fresh);
+          localStorage.setItem("wespace_status", JSON.stringify(fresh));
+          await setDoc(statusRef, fresh, { merge: true });
+          return;
+        }
 
-          // If the saved daily question is for a different day, reset the shared daily question for today.
-          const remoteDay = remote.dailyQuestion?.day || remote.currentDay;
-          if (remoteDay !== today) {
-            const reset = {
-              ...remote,
-              currentDay: today,
-              dailyQuestion: createDailyQuestion(today),
-              timeCapsules: remote.timeCapsules || [],
-              Manuel: {
-                ...(remote.Manuel || {}),
-                hearts: 0,
-                mood: "",
-                moment: "",
-                status: "",
-                battery: remote.Manuel?.battery || "",
-                proximity: "",
-                sleep: "",
-                updatedAt: new Date().toISOString(),
-              },
-              Nela: {
-                ...(remote.Nela || {}),
-                hearts: 0,
-                mood: "",
-                moment: "",
-                status: "",
-                battery: remote.Nela?.battery || "",
-                proximity: "",
-                sleep: "",
-                updatedAt: new Date().toISOString(),
-              },
-            };
+        const normalized = normalizeData(snap.data());
+        setData(normalized);
+        localStorage.setItem("wespace_status", JSON.stringify(normalized));
 
-            // try to persist reset; if it fails we'll keep local copy
-            setDoc(statusRef, reset, { merge: true }).catch(() => {
-              localStorage.setItem("wespace_status", JSON.stringify(reset));
-            });
-
-            setData({
-              ...reset,
-              currentDay: today,
-              dailyQuestion: reset.dailyQuestion,
-              timeCapsules: reset.timeCapsules || [],
-              Manuel: { hearts: 0, mood: "", moment: "", status: "", battery: reset.Manuel?.battery || "", proximity: "", sleep: "" },
-              Nela: { hearts: 0, mood: "", moment: "", status: "", battery: reset.Nela?.battery || "", proximity: "", sleep: "" },
-            });
-            localStorage.setItem("wespace_status", JSON.stringify(reset));
-            return;
-          }
-
-          setData({
-            ...remote,
-            currentDay: remote.currentDay || today,
-            dailyQuestion: remote.dailyQuestion?.day === today ? remote.dailyQuestion : createDailyQuestion(today),
-            timeCapsules: remote.timeCapsules || [],
-            Manuel: { hearts: 0, mood: "", moment: "", status: "", battery: remote.Manuel?.battery || "", proximity: remote.Manuel?.proximity || "", sleep: remote.Manuel?.sleep || "" },
-            Nela: { hearts: 0, mood: "", moment: "", status: "", battery: remote.Nela?.battery || "", proximity: remote.Nela?.proximity || "", sleep: remote.Nela?.sleep || "" },
-          });
-          localStorage.setItem("wespace_status", JSON.stringify(remote));
+        if ((snap.data().dailyQuestion?.day || snap.data().currentDay) !== todayKey) {
+          await setDoc(statusRef, normalized, { merge: true });
         }
       },
-      (err) => {
-        // on error, fall back to cached data
-        // eslint-disable-next-line no-console
-        console.warn("status snapshot error", err);
+      () => {
         const cached = localStorage.getItem("wespace_status");
-        if (cached) setData(JSON.parse(cached));
+        if (cached) {
+          try {
+            setData(normalizeData(JSON.parse(cached)));
+          } catch {
+            // ignore
+          }
+        }
+      }
+    );
+  }, [todayKey]);
+
+  useEffect(() => {
+    if (!firebaseAvailable || !db) return;
+
+    const messagesRef = collection(db, "spaces", SPACE_ID, "messages");
+    const q = query(messagesRef, orderBy("createdAt", "asc"));
+
+    return onSnapshot(
+      q,
+      (snap) => {
+        const nextMessages = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setMessages(nextMessages);
+        localStorage.setItem("wespace_messages", JSON.stringify(nextMessages));
+      },
+      () => {
+        const cached = localStorage.getItem("wespace_messages");
+        if (cached) {
+          try {
+            setMessages(JSON.parse(cached));
+          } catch {
+            // ignore
+          }
+        }
       }
     );
   }, []);
 
-  // Subscribe to messages (or cached)
-  useEffect(() => {
-    if (!firebaseAvailable || !db) {
-      const cached = localStorage.getItem("wespace_messages");
-      if (cached) setMessages(JSON.parse(cached));
-      return;
-    }
-
-    const messagesRef = collection(db, "spaces", SPACE_ID, "messages");
-    const q = query(messagesRef, orderBy("createdAt", "asc"));
-    return onSnapshot(q, (snap) => {
-      const msgs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setMessages(msgs);
-      localStorage.setItem("wespace_messages", JSON.stringify(msgs));
-    }, (err) => {
-      // fallback
-      // eslint-disable-next-line no-console
-      console.warn("messages snapshot error", err);
-      const cached = localStorage.getItem("wespace_messages");
-      if (cached) setMessages(JSON.parse(cached));
-    });
-  }, []);
-
   useEffect(() => {
     if (tab === "chat") {
-      const count = messages.filter((m) => m.name !== user).length;
+      const count = messages.filter((message) => message.name !== user).length;
       setLastRead(count);
-      localStorage.setItem("wespace_last_read", count);
+      localStorage.setItem("wespace_last_read", String(count));
     }
 
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, tab, user]);
 
-  const unread =
-    tab === "chat"
-      ? 0
-      : Math.max(0, messages.filter((m) => m.name !== user).length - lastRead);
+  useEffect(() => {
+    setQuestionDraft(data.dailyQuestion?.answers?.[user] || "");
+  }, [data.dailyQuestion?.day, data.dailyQuestion?.answers, user]);
+
+  useEffect(() => {
+    return () => {
+      if (notificationTimer.current) clearTimeout(notificationTimer.current);
+    };
+  }, []);
 
   function chooseUser(name) {
     localStorage.setItem("wespace_user", name);
     setUser(name);
   }
 
-  async function updateMyData(newData) {
-    const today = getLocalDateKey();
-    const userData = {
-      ...(data[user] || {}),
-      ...newData,
+  function flash(text) {
+    setNotification(text);
+    if (notificationTimer.current) clearTimeout(notificationTimer.current);
+    notificationTimer.current = setTimeout(() => setNotification(""), 3500);
+  }
+
+  async function saveStatus(nextData, bannerText = "") {
+    const normalized = normalizeData(nextData);
+    setData(normalized);
+    localStorage.setItem("wespace_status", JSON.stringify(normalized));
+
+    if (bannerText) flash(bannerText);
+
+    if (!firebaseAvailable || !db || !isOnline) return;
+
+    try {
+      const statusRef = doc(db, "spaces", SPACE_ID, "data", "status");
+      await setDoc(statusRef, normalized, { merge: true });
+    } catch {
+      // local fallback already saved
+    }
+  }
+
+  function updateMyData(partial, label = "Status aktualisiert") {
+    if (!user) return;
+
+    const nextPerson = {
+      ...me,
+      ...partial,
       sleep:
-        newData.proximity !== undefined
-          ? newData.proximity === "🌙 Gute Nacht"
+        partial.proximity !== undefined
+          ? partial.proximity === "🌙 Gute Nacht"
             ? "Schlafend"
             : ""
-          : data[user]?.sleep || "",
+          : me.sleep || "",
       updatedAt: new Date().toISOString(),
     };
 
-    const updated = {
-      ...data,
-      currentDay: today,
-      [user]: userData,
-    };
-
-    setData(updated);
-    localStorage.setItem("wespace_status", JSON.stringify(updated));
-
-    if (!firebaseAvailable || !db || !isOnline) {
-      // queue update
-      const pending = getPendingUpdates();
-      pending.push(updated);
-      setPendingUpdates(pending);
-      return;
-    }
-
-    try {
-      const statusRef = doc(db, "spaces", SPACE_ID, "data", "status");
-      await setDoc(statusRef, updated, { merge: true });
-    } catch (e) {
-      const pending = getPendingUpdates();
-      pending.push(updated);
-      setPendingUpdates(pending);
-    }
-  }
-
-  async function saveCapsule() {
-    if (!capsuleText.trim()) return;
-    const today = getLocalDateKey();
-    const capsule = {
-      id: `capsule-${Date.now()}`,
-      owner: user,
-      text: capsuleText.trim(),
-      targetDate: capsuleDate,
-      createdAt: new Date().toISOString(),
-    };
-    const updated = {
-      ...data,
-      currentDay: today,
-      timeCapsules: [...(data.timeCapsules || []), capsule],
-    };
-    setData(updated);
-    localStorage.setItem("wespace_status", JSON.stringify(updated));
-    setCapsuleText("");
-
-    if (!firebaseAvailable || !db || !isOnline) {
-      const pending = getPendingUpdates();
-      pending.push(updated);
-      setPendingUpdates(pending);
-      return;
-    }
-
-    try {
-      const statusRef = doc(db, "spaces", SPACE_ID, "data", "status");
-      await setDoc(statusRef, updated, { merge: true });
-    } catch (e) {
-      const pending = getPendingUpdates();
-      pending.push(updated);
-      setPendingUpdates(pending);
-    }
-  }
-
-  async function saveDailyAnswer(answer) {
-    const today = getLocalDateKey();
-    const dailyQuestion = data.dailyQuestion?.day === today ? data.dailyQuestion : createDailyQuestion(today);
-    const updated = {
-      ...data,
-      currentDay: today,
-      dailyQuestion: {
-        ...dailyQuestion,
-        day: today,
-        question: getQuestionForDate(today),
-        answers: {
-          ...dailyQuestion.answers,
-          [user]: answer,
-        },
+    saveStatus(
+      {
+        ...data,
+        currentDay: todayKey,
+        [user]: nextPerson,
       },
-    };
-
-    setData(updated);
-    localStorage.setItem("wespace_status", JSON.stringify(updated));
-
-    if (!firebaseAvailable || !db || !isOnline) {
-      const pending = getPendingUpdates();
-      pending.push(updated);
-      setPendingUpdates(pending);
-      return;
-    }
-
-    try {
-      const statusRef = doc(db, "spaces", SPACE_ID, "data", "status");
-      await setDoc(statusRef, updated, { merge: true });
-    } catch (e) {
-      const pending = getPendingUpdates();
-      pending.push(updated);
-      setPendingUpdates(pending);
-    }
+      label
+    );
   }
 
   async function sendMessage() {
-    if (!text.trim()) return;
+    const clean = messageText.trim();
+    if (!clean || !user) return;
 
-    const msg = { name: user, text: text.trim() };
+    setMessageText("");
 
     if (!firebaseAvailable || !db || !isOnline) {
-      const pending = getPendingMessages();
-      pending.push({ ...msg, createdAt: new Date().toISOString() });
-      setPendingMessages(pending);
-      setMessages((m) => [...m, { id: `local-${Date.now()}`, ...msg, createdAt: new Date().toISOString() }]);
-      setText("");
-      localStorage.setItem("wespace_messages", JSON.stringify(messages));
+      const localMessage = {
+        id: `local-${Date.now()}`,
+        name: user,
+        text: clean,
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((current) => [...current, localMessage]);
       return;
     }
 
     try {
       const messagesRef = collection(db, "spaces", SPACE_ID, "messages");
-      await addDoc(messagesRef, { ...msg, createdAt: serverTimestamp() });
-      setText("");
-    } catch (e) {
-      const pending = getPendingMessages();
-      pending.push({ ...msg, createdAt: new Date().toISOString() });
-      setPendingMessages(pending);
+      await addDoc(messagesRef, {
+        name: user,
+        text: clean,
+        createdAt: serverTimestamp(),
+      });
+    } catch {
+      setMessages((current) => [
+        ...current,
+        {
+          id: `local-${Date.now()}`,
+          name: user,
+          text: clean,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
     }
   }
 
-  // Location sharing
+  function saveDailyAnswer() {
+    const clean = questionDraft.trim();
+    if (!clean) return;
+
+    const dailyQuestion =
+      data.dailyQuestion?.day === todayKey
+        ? data.dailyQuestion
+        : createDailyQuestion(todayKey);
+
+    saveStatus(
+      {
+        ...data,
+        currentDay: todayKey,
+        dailyQuestion: {
+          ...dailyQuestion,
+          day: todayKey,
+          question: getQuestionForDate(todayKey),
+          answers: {
+            ...dailyQuestion.answers,
+            [user]: clean,
+          },
+        },
+      },
+      "Antwort gespeichert"
+    );
+  }
+
+  function saveMoment() {
+    updateMyData({ moment: me.moment || "" }, "Moment gespeichert");
+  }
+
+  function saveCapsule() {
+    const clean = capsuleText.trim();
+    if (!clean) return;
+
+    const capsule = {
+      id: `capsule-${Date.now()}`,
+      owner: user,
+      text: clean,
+      targetDate: capsuleDate || todayKey,
+      createdAt: new Date().toISOString(),
+    };
+
+    saveStatus(
+      {
+        ...data,
+        currentDay: todayKey,
+        timeCapsules: [capsule, ...(data.timeCapsules || [])],
+      },
+      "Zeitkapsel gespeichert"
+    );
+
+    setCapsuleText("");
+  }
+
   function shareLocation() {
     if (!navigator.geolocation) {
-      alert("Geolocation wird nicht unterstützt.");
+      alert("Standort wird auf diesem Gerät nicht unterstützt.");
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const loc = {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-          updatedAt: new Date().toISOString(),
-        };
-        updateMyData({ location: loc });
+      (position) => {
+        updateMyData(
+          {
+            location: {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+              accuracy: Math.round(position.coords.accuracy),
+              updatedAt: new Date().toISOString(),
+            },
+          },
+          "Standort geteilt"
+        );
       },
-      (err) => {
-        // eslint-disable-next-line no-console
-        console.warn("location error", err);
-        alert("Standort konnte nicht ermittelt werden.");
-      },
-      { enableHighAccuracy: true, maximumAge: 60000 }
+      () => alert("Standort konnte nicht ermittelt werden."),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
     );
   }
 
@@ -602,181 +570,259 @@ export default function App() {
     );
   }
 
-  const me = data[user] || {};
-  const other = data[partner] || {};
-  const todayKey = getLocalDateKey();
-
-  useEffect(() => {
-    setQuestionDraft(data.dailyQuestion?.answers?.[user] || "");
-  }, [user, data.dailyQuestion?.day, data.dailyQuestion?.answers]);
-
   return (
     <main className="app">
+      {notification && <div className="toast">{notification}</div>}
+
       <section className="hero">
         <p className="tag">unser kleiner ort</p>
         <h1>WeSpace</h1>
-        <p className="subtitle">Ein Ort für uns, auch wenn uns das Leben mal trennt.</p>
-      </section>
-
-<section className="tabs three">
-        <button className={tab === "home" ? "active" : ""} onClick={() => setTab("home")}>Heute</button>
-        <button className={tab === "chat" ? "active" : ""} onClick={() => setTab("chat")}>
-          Chat
-          {unread > 0 && <span className="notify">{unread}</span>}
-        </button>
-        <button className={tab === "map" ? "active" : ""} onClick={() => setTab("map")}>Karte</button>
+        <p className="subtitle">
+          Ein Ort für Nähe, auch wenn Entfernung dazwischen liegt.
+        </p>
       </section>
 
       {!isOnline && (
-        <div className="offline-banner">Offline – Live-Daten werden später aktualisiert</div>
+        <div className="offline-banner">
+          Offline – Live-Daten werden später aktualisiert
+        </div>
       )}
+
+      <section className="tabs three">
+        <button
+          className={tab === "home" ? "active" : ""}
+          onClick={() => setTab("home")}
+        >
+          Heute
+        </button>
+
+        <button
+          className={tab === "chat" ? "active" : ""}
+          onClick={() => setTab("chat")}
+        >
+          Chat
+          {unread > 0 && <span className="notify">{unread}</span>}
+        </button>
+
+        <button
+          className={tab === "map" ? "active" : ""}
+          onClick={() => setTab("map")}
+        >
+          Karte
+        </button>
+      </section>
 
       {tab === "home" && (
         <>
-          <section className="card pair-grid">
+          <section className="summary-grid">
+            <div className="summary-card">
+              <span>❤️</span>
+              <strong>Heute</strong>
+              <small>gemeinsamer Tagesraum</small>
+            </div>
+
+            <div className="summary-card">
+              <span>📍</span>
+              <strong>{distanceKm !== null ? `${distanceKm} km` : "—"}</strong>
+              <small>Entfernung</small>
+            </div>
+
+            <div className="summary-card">
+              <span>⏳</span>
+              <strong>180 Tage</strong>
+              <small>bis Wiedersehen</small>
+            </div>
+          </section>
+
+          <section className="people-grid">
             {["Manuel", "Nela"].map((name) => {
-              const person = data[name] || {};
+              const person = data[name] || EMPTY_PERSON;
+
               return (
-                <div key={name} className="person-card">
-                  <div className="person-head">
+                <article className="person-card" key={name}>
+                  <header>
                     <strong>{name}</strong>
-                    <small>geändert {timeTextShort(person.updatedAt)}</small>
+                    <small>
+                      <i className={`dot ${statusDot(person.updatedAt)}`} />
+                      {statusText(person.updatedAt)}
+                    </small>
+                  </header>
+
+                  <div className="person-lines">
+                    <p>
+                      <span>Stimmung</span>
+                      <b>{person.mood || "—"}</b>
+                    </p>
+                    <p>
+                      <span>Aktivität</span>
+                      <b>{person.status || "—"}</b>
+                    </p>
+                    <p>
+                      <span>Bedürfnis</span>
+                      <b>{person.proximity || "—"}</b>
+                    </p>
+                    <p>
+                      <span>Schlaf</span>
+                      <b>{person.sleep || "—"}</b>
+                    </p>
                   </div>
-                  <div className="status-list">
-                    <div><span>Stimmung</span><strong>{person.mood || "—"}</strong></div>
-                    <div><span>Aktivität</span><strong>{person.status || "—"}</strong></div>
-                    <div><span>Bedürfnis</span><strong>{person.proximity || "—"}</strong></div>
-                    <div><span>Schlaf</span><strong>{person.sleep || "—"}</strong></div>
-                  </div>
-                </div>
+                </article>
               );
             })}
           </section>
 
-          <div className="segment-switch">
-            <button className={segment === 'feeling' ? 'active' : ''} onClick={() => setSegment('feeling')}>Gefühl</button>
-            <button className={segment === 'proximity' ? 'active' : ''} onClick={() => setSegment('proximity')}>Nähe</button>
-            <button className={segment === 'question' ? 'active' : ''} onClick={() => setSegment('question')}>Frage</button>
-            <button className={segment === 'moment' ? 'active' : ''} onClick={() => setSegment('moment')}>Moment</button>
-          </div>
+          <section className="card">
+            <h3>Gefühl</h3>
+            <div className="button-grid">
+              {moodOptions.map((item) => (
+                <button
+                  key={item}
+                  className={me.mood === item ? "active" : ""}
+                  onClick={() => updateMyData({ mood: item }, "Stimmung geteilt")}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </section>
 
-          {segment === 'question' && (
-            <section className="card question-card">
-              <h3>Frage des Tages</h3>
-              <p className="question-text">{data.dailyQuestion?.question || getQuestionForDate(todayKey)}</p>
-              <div className="question-grid">
-                <div className="question-box">
-                  <strong>Manuel</strong>
-                  <p>{data.dailyQuestion?.answers?.Manuel || "Noch nichts geantwortet."}</p>
-                </div>
-                <div className="question-box">
-                  <strong>Nela</strong>
-                  <p>{data.dailyQuestion?.answers?.Nela || "Noch nichts geantwortet."}</p>
-                </div>
-              </div>
-              <textarea
-                className="question-input"
-                placeholder="Deine Antwort hier"
-                value={questionDraft}
-                onChange={(e) => setQuestionDraft(e.target.value)}
-              />
-              <button className="question-save" onClick={() => saveDailyAnswer(questionDraft)}>Antwort speichern</button>
-            </section>
-          )}
+          <section className="card">
+            <h3>Alltag</h3>
+            <div className="button-grid">
+              {activityOptions.map((item) => (
+                <button
+                  key={item}
+                  className={me.status === item ? "active" : ""}
+                  onClick={() =>
+                    updateMyData({ status: item }, "Aktivität geteilt")
+                  }
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </section>
 
-          {segment === 'feeling' && (
-            <>
-              <section className="card action-group">
-                <h3>Wie geht's dir?</h3>
-                <div className="action-buttons">
-                  {moodOptions.map((item) => (
-                    <button key={item} className={me.mood === item ? "active" : ""} onClick={() => updateMyData({ mood: item })}>{item}</button>
-                  ))}
-                </div>
-              </section>
+          <section className="card">
+            <h3>Nähe</h3>
+            <div className="button-grid">
+              {proximityOptions.map((item) => (
+                <button
+                  key={item}
+                  className={me.proximity === item ? "active" : ""}
+                  onClick={() =>
+                    updateMyData({ proximity: item }, "Nähe-Signal geteilt")
+                  }
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
 
-              <section className="card action-group">
-                <h3>Was machst du gerade?</h3>
-                <div className="action-buttons">
-                  {activityOptions.map((item) => (
-                    <button key={item} className={me.status === item ? "active" : ""} onClick={() => updateMyData({ status: item })}>{item}</button>
-                  ))}
-                </div>
-              </section>
-            </>
-          )}
-
-          {segment === 'proximity' && (
-            <>
-              <section className="card action-group">
-                <h3>Was brauchst du gerade?</h3>
-                <div className="action-buttons proximity-buttons">
-                  {proximityOptions.map((item) => (
-                    <button key={item} className={me.proximity === item ? "active" : ""} onClick={() => updateMyData({ proximity: item })}>{item}</button>
-                  ))}
-                </div>
-              </section>
-
-              {me.proximity === "🌙 Gute Nacht" && other.proximity === "🌙 Gute Nacht" && (
-                <section className="card night-card">
-                  <p>⭐ Ihr schlaft beide gerade</p>
-                </section>
+            {data.Manuel?.sleep === "Schlafend" &&
+              data.Nela?.sleep === "Schlafend" && (
+                <p className="both-sleep">⭐ Ihr schlaft beide gerade</p>
               )}
-            </>
-          )}
+          </section>
 
-          {segment === 'moment' && (
-            <section className="card moment-card">
-              <h3>Tagesmomente</h3>
-              <textarea
-                placeholder="Kurz deinen Moment für heute schreiben..."
-                value={me.moment || ""}
-                onChange={(e) => updateMyData({ moment: e.target.value })}
-              />
-              <div className="moment-grid">
-                <div className="moment-box">
-                  <strong>Manuel</strong>
-                  <p>{data.Manuel?.moment || "Noch nichts."}</p>
-                </div>
-                <div className="moment-box">
-                  <strong>Nela</strong>
-                  <p>{data.Nela?.moment || "Noch nichts."}</p>
-                </div>
+          <section className="card">
+            <h3>Frage des Tages</h3>
+            <p className="question-text">
+              {data.dailyQuestion?.question || getQuestionForDate(todayKey)}
+            </p>
+
+            <textarea
+              placeholder="Deine Antwort..."
+              value={questionDraft}
+              onChange={(e) => setQuestionDraft(e.target.value)}
+            />
+
+            <button className="save-button" onClick={saveDailyAnswer}>
+              Antwort speichern
+            </button>
+
+            <div className="answer-grid">
+              <div>
+                <strong>Manuel</strong>
+                <p>{data.dailyQuestion?.answers?.Manuel || "Noch offen"}</p>
               </div>
-            </section>
-          )}
-
-          <section className="card capsule-card">
-            <h3>Zeitkapsel</h3>
-            <div className="capsule-form">
-              <textarea
-                placeholder="Nachricht für später"
-                value={capsuleText}
-                onChange={(e) => setCapsuleText(e.target.value)}
-              />
-              <div className="capsule-meta">
-                <input type="date" value={capsuleDate} onChange={(e) => setCapsuleDate(e.target.value)} />
-                <button className="capsule-save" onClick={saveCapsule}>Speichern</button>
+              <div>
+                <strong>Nela</strong>
+                <p>{data.dailyQuestion?.answers?.Nela || "Noch offen"}</p>
               </div>
             </div>
+          </section>
+
+          <section className="card">
+            <h3>Tagesmoment</h3>
+
+            <textarea
+              placeholder="Ein Satz aus deinem Tag..."
+              value={me.moment || ""}
+              onChange={(e) =>
+                setData((current) => ({
+                  ...current,
+                  [user]: {
+                    ...(current[user] || EMPTY_PERSON),
+                    moment: e.target.value,
+                  },
+                }))
+              }
+            />
+
+            <button className="save-button" onClick={saveMoment}>
+              Moment speichern
+            </button>
+
+            <div className="answer-grid">
+              <div>
+                <strong>Manuel</strong>
+                <p>{data.Manuel?.moment || "Noch nichts geteilt"}</p>
+              </div>
+              <div>
+                <strong>Nela</strong>
+                <p>{data.Nela?.moment || "Noch nichts geteilt"}</p>
+              </div>
+            </div>
+          </section>
+
+          <section className="card">
+            <h3>Zeitkapsel</h3>
+
+            <textarea
+              placeholder="Nachricht für später..."
+              value={capsuleText}
+              onChange={(e) => setCapsuleText(e.target.value)}
+            />
+
+            <div className="capsule-row">
+              <input
+                type="date"
+                value={capsuleDate}
+                onChange={(e) => setCapsuleDate(e.target.value)}
+              />
+              <button onClick={saveCapsule}>Speichern</button>
+            </div>
+
             <div className="capsule-list">
-              {(data.timeCapsules || []).length === 0 ? (
-                <p className="empty">Noch keine Zeitkapseln</p>
-              ) : (
-                (data.timeCapsules || []).map((entry) => (
-                  <div key={entry.id} className="capsule-entry">
-                    <div className="capsule-row">
-                      <strong>{entry.owner}</strong>
-                      <small>{entry.targetDate}</small>
-                    </div>
-                    {entry.targetDate <= todayKey ? (
-                      <p>{entry.text}</p>
-                    ) : (
-                      <p className="locked">Noch verschlossen</p>
-                    )}
-                  </div>
-                ))
+              {(data.timeCapsules || []).length === 0 && (
+                <p className="empty-small">Noch keine Zeitkapseln</p>
               )}
+
+              {(data.timeCapsules || []).slice(0, 5).map((capsule) => (
+                <div className="capsule-item" key={capsule.id}>
+                  <div>
+                    <strong>{capsule.owner}</strong>
+                    <small>{capsule.targetDate}</small>
+                  </div>
+
+                  {capsule.targetDate <= todayKey ? (
+                    <p>{capsule.text}</p>
+                  ) : (
+                    <p className="locked">Noch verschlossen</p>
+                  )}
+                </div>
+              ))}
             </div>
           </section>
         </>
@@ -784,20 +830,20 @@ export default function App() {
 
       {tab === "chat" && (
         <section className="card chat-card">
-          <div className="chat-head">
-            <div>
-              <p className="tag small-tag">nur für euch</p>
-              <h3>Unser Chat</h3>
-            </div>
-          </div>
+          <h3>Unser Chat</h3>
 
           <div className="chat-box">
-            {messages.length === 0 && <p className="empty">Noch keine Nachrichten</p>}
+            {messages.length === 0 && (
+              <p className="empty-small">Noch keine Nachrichten</p>
+            )}
 
-            {messages.map((msg) => (
-              <div key={msg.id} className={`message ${msg.name === user ? "mine" : ""}`}>
-                <strong>{msg.name}</strong>
-                <span>{msg.text}</span>
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={`message ${message.name === user ? "mine" : ""}`}
+              >
+                <strong>{message.name}</strong>
+                <span>{message.text}</span>
               </div>
             ))}
 
@@ -805,49 +851,67 @@ export default function App() {
           </div>
 
           <div className="send-row">
-            <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMessage()} placeholder="Nachricht schreiben..." />
+            <input
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+              placeholder="Nachricht schreiben..."
+            />
             <button onClick={sendMessage}>Senden</button>
           </div>
         </section>
       )}
 
-
       {tab === "map" && (
         <section className="card">
           <h3>Karte</h3>
-          <div style={{ height: 300 }}>
-            <MapContainer center={
-              me.location ? [me.location.lat, me.location.lng] : other.location ? [other.location.lat, other.location.lng] : [51.505, -0.09]
-            } zoom={13} style={{ height: '100%', width: '100%' }}>
+
+          <div className="map-box">
+            <MapContainer
+              center={
+                me.location
+                  ? [me.location.lat, me.location.lng]
+                  : other.location
+                  ? [other.location.lat, other.location.lng]
+                  : [48.1351, 11.582]
+              }
+              zoom={13}
+              className="map"
+            >
               <TileLayer
-                attribution='&copy; OpenStreetMap contributors'
+                attribution="&copy; OpenStreetMap"
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
 
-              {me.location && (
-                <Marker position={[me.location.lat, me.location.lng]}>
-                  <Popup>
-                    Manuel<br />
-                    Zuletzt: {timeText(me.location.updatedAt)}
-                  </Popup>
+              {data.Manuel?.location && (
+                <Marker
+                  position={[
+                    data.Manuel.location.lat,
+                    data.Manuel.location.lng,
+                  ]}
+                >
+                  <Popup>Manuel – {timeText(data.Manuel.location.updatedAt)}</Popup>
                 </Marker>
               )}
 
-              {other.location && (
-                <Marker position={[other.location.lat, other.location.lng]}>
-                  <Popup>
-                    Nela<br />
-                    Zuletzt: {timeText(other.location.updatedAt)}
-                  </Popup>
+              {data.Nela?.location && (
+                <Marker
+                  position={[data.Nela.location.lat, data.Nela.location.lng]}
+                >
+                  <Popup>Nela – {timeText(data.Nela.location.updatedAt)}</Popup>
                 </Marker>
               )}
             </MapContainer>
           </div>
 
-          <div style={{ marginTop: 12 }}>
-            <button onClick={shareLocation}>Standort teilen</button>
-            <p className="muted">Kein Background-Tracking — nur wenn du teilst.</p>
-          </div>
+          <button className="save-button" onClick={shareLocation}>
+            📍 Standort teilen
+          </button>
+
+          <p className="muted">
+            Kein Background-Tracking. Standort wird nur geteilt, wenn du den
+            Button drückst.
+          </p>
         </section>
       )}
     </main>
