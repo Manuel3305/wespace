@@ -24,12 +24,17 @@ button {
   width: min(430px, 100%);
   min-height: 100vh;
   margin: auto;
-  padding: 18px 14px 28px;
+  padding: 14px 12px 24px;
 }
 
 .hero {
   text-align: center;
-  padding: 16px 8px 14px;
+  padding: 14px 8px 12px;
+}
+
+.compact-hero {
+  padding-top: 8px;
+  padding-bottom: 10px;
 }
 
 .tag {
@@ -41,8 +46,8 @@ button {
 }
 
 h1 {
-  margin: 6px 0 8px;
-  font-size: 48px;
+  margin: 4px 0 7px;
+  font-size: 42px;
   line-height: 1;
 }
 
@@ -54,13 +59,15 @@ h3 {
 .subtitle {
   max-width: 320px;
   margin: 0 auto;
-  line-height: 1.45;
-  opacity: 0.75;
+  line-height: 1.35;
+  opacity: 0.72;
+  font-size: 13px;
 }
 
 .card,
-.person-card,
-.summary-card {
+.person-mini,
+.summary-card,
+.pulse-card {
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: rgba(255, 255, 255, 0.13);
   backdrop-filter: blur(18px);
@@ -68,9 +75,13 @@ h3 {
 }
 
 .card {
-  margin-bottom: 12px;
-  padding: 15px;
-  border-radius: 24px;
+  margin-bottom: 10px;
+  padding: 14px;
+  border-radius: 22px;
+}
+
+.compact-card {
+  padding: 12px;
 }
 
 .choose-card {
@@ -90,7 +101,7 @@ h3 {
 .tabs {
   display: grid;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   padding: 6px;
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.11);
@@ -104,7 +115,7 @@ h3 {
   position: relative;
   border: 0;
   border-radius: 17px;
-  padding: 12px 8px;
+  padding: 11px 8px;
   color: white;
   font-weight: 800;
   background: transparent;
@@ -133,7 +144,7 @@ h3 {
 
 .offline-banner,
 .toast {
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   padding: 11px 14px;
   border-radius: 18px;
   text-align: center;
@@ -166,69 +177,69 @@ h3 {
   }
 }
 
-.summary-grid {
+.top-status-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr 1fr;
   gap: 9px;
-  margin-bottom: 12px;
-}
-
-.summary-card {
-  min-height: 82px;
-  padding: 10px 8px;
-  border-radius: 18px;
-  display: grid;
-  place-items: center;
-  text-align: center;
-  gap: 3px;
-}
-
-.summary-card span {
-  font-size: 20px;
-}
-
-.summary-card strong {
-  font-size: 13px;
-}
-
-.summary-card small {
-  font-size: 10px;
-  opacity: 0.7;
-}
-
-.people-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.person-card {
-  padding: 13px;
-  border-radius: 22px;
-}
-
-.person-card header {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: flex-start;
   margin-bottom: 10px;
 }
 
-.person-card header strong {
-  font-size: 17px;
+.person-mini {
+  padding: 11px;
+  border-radius: 20px;
 }
 
-.person-card header small {
+.person-mini header {
   display: flex;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.person-mini header strong {
+  font-size: 15px;
+}
+
+.person-mini header small {
+  display: flex;
+  gap: 5px;
   align-items: center;
-  max-width: 190px;
-  line-height: 1.25;
   text-align: right;
-  font-size: 11px;
-  opacity: 0.78;
+  font-size: 10px;
+  line-height: 1.2;
+  opacity: 0.75;
+}
+
+.mini-line {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 7px;
+}
+
+.mini-line span,
+.mini-line b,
+.person-mini p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-line span {
+  font-size: 13px;
+}
+
+.mini-line b {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.person-mini p {
+  margin: 0;
+  padding: 8px 9px;
+  border-radius: 14px;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.09);
 }
 
 .dot {
@@ -253,29 +264,111 @@ h3 {
   background: rgba(255, 255, 255, 0.35);
 }
 
-.person-lines {
-  display: grid;
-  gap: 7px;
+.pulse-card {
+  margin-bottom: 10px;
+  padding: 12px;
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at top left, rgba(255, 182, 193, 0.34), transparent 45%),
+    rgba(255, 255, 255, 0.14);
 }
 
-.person-lines p {
-  margin: 0;
-  padding: 10px 11px;
-  border-radius: 16px;
-  display: flex;
-  justify-content: space-between;
+.pulse-card button {
+  width: 100%;
+  min-height: 104px;
+  border: 0;
+  border-radius: 24px;
+  display: grid;
+  place-items: center;
+  gap: 3px;
+  color: white;
+  background: linear-gradient(135deg, rgba(255, 80, 130, 0.95), rgba(180, 75, 255, 0.72));
+  box-shadow: 0 14px 35px rgba(255, 68, 118, 0.24);
+}
+
+.pulse-card button span {
+  font-size: 34px;
+  animation: pulseHeart 1.4s infinite;
+}
+
+.pulse-card button strong {
+  font-size: 19px;
+}
+
+.pulse-card button small {
+  opacity: 0.78;
+}
+
+@keyframes pulseHeart {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  45% {
+    transform: scale(1.18);
+  }
+}
+
+.pulse-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 8px;
+  margin-top: 10px;
+}
+
+.pulse-stats p {
+  margin: 0;
+  padding: 9px;
+  border-radius: 15px;
+  display: grid;
+  text-align: center;
   background: rgba(255, 255, 255, 0.09);
 }
 
-.person-lines span {
-  font-size: 12px;
-  opacity: 0.72;
+.pulse-stats b {
+  font-size: 14px;
 }
 
-.person-lines b {
+.pulse-stats span {
+  font-size: 10px;
+  opacity: 0.65;
+}
+
+.home-subtabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 7px;
+  margin-bottom: 10px;
+  padding: 5px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.home-subtabs button {
+  position: relative;
+  border: 0;
+  border-radius: 15px;
+  padding: 10px 4px;
+  color: white;
   font-size: 13px;
-  text-align: right;
+  font-weight: 800;
+  background: transparent;
+}
+
+.home-subtabs button.active {
+  background: rgba(255, 255, 255, 0.27);
+}
+
+.home-subtabs button i {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff3b5f;
+  box-shadow: 0 0 10px rgba(255, 59, 95, 0.8);
 }
 
 .button-grid {
@@ -295,9 +388,14 @@ h3 {
 }
 
 .button-grid button {
-  min-height: 54px;
-  padding: 12px 10px;
-  border-radius: 17px;
+  min-height: 52px;
+  padding: 11px 9px;
+  border-radius: 16px;
+}
+
+.compact-buttons button {
+  min-height: 47px;
+  font-size: 13px;
 }
 
 .button-grid button.active {
@@ -305,17 +403,43 @@ h3 {
 }
 
 .both-sleep {
-  margin: 12px 0 0;
-  padding: 12px;
+  margin: 10px 0 0;
+  padding: 11px;
   border-radius: 16px;
   text-align: center;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.feature-card {
+  min-height: 320px;
+}
+
+.feature-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.feature-head h3 {
+  margin-bottom: 0;
+}
+
+.feature-head > span {
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  font-size: 23px;
   background: rgba(255, 255, 255, 0.12);
 }
 
 .question-text {
   margin: 0 0 12px;
   line-height: 1.45;
-  opacity: 0.9;
+  opacity: 0.92;
 }
 
 textarea,
@@ -328,7 +452,7 @@ input {
 }
 
 textarea {
-  min-height: 88px;
+  min-height: 82px;
   resize: vertical;
   border-radius: 18px;
   padding: 13px;
@@ -359,7 +483,7 @@ input::placeholder {
 }
 
 .answer-grid div {
-  min-height: 68px;
+  min-height: 66px;
   padding: 11px;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.09);
@@ -376,6 +500,10 @@ input::placeholder {
   font-size: 13px;
   line-height: 1.35;
   opacity: 0.86;
+}
+
+.capsule-explain {
+  margin-bottom: 11px;
 }
 
 .capsule-row {
@@ -437,45 +565,67 @@ input::placeholder {
 }
 
 .chat-card {
-  min-height: 520px;
+  height: calc(100vh - 190px);
+  min-height: 430px;
   display: flex;
   flex-direction: column;
+  padding-bottom: 12px;
+}
+
+.chat-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.chat-title h3 {
+  margin-bottom: 0;
+}
+
+.chat-title small {
+  opacity: 0.65;
+  font-size: 12px;
 }
 
 .chat-box {
-  height: 350px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 8px;
   padding-right: 4px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+  scroll-behavior: smooth;
 }
 
 .message {
   max-width: 78%;
   align-self: flex-start;
-  padding: 11px 13px;
-  border-radius: 20px 20px 20px 6px;
+  padding: 10px 12px;
+  border-radius: 18px 18px 18px 6px;
   background: rgba(255, 255, 255, 0.14);
 }
 
 .message.mine {
   align-self: flex-end;
-  border-radius: 20px 20px 6px 20px;
+  border-radius: 18px 18px 6px 18px;
   background: rgba(255, 255, 255, 0.3);
 }
 
 .message strong {
   display: block;
   margin-bottom: 3px;
-  font-size: 12px;
+  font-size: 11px;
   opacity: 0.7;
 }
 
 .message span {
   display: block;
-  line-height: 1.35;
+  line-height: 1.32;
+  font-size: 14px;
 }
 
 .send-row {
@@ -487,7 +637,11 @@ input::placeholder {
 
 .send-row button {
   border-radius: 18px;
-  padding: 0 16px;
+  padding: 0 15px;
+}
+
+.sticky-send {
+  flex: 0 0 auto;
 }
 
 .map-box {
@@ -516,15 +670,19 @@ input::placeholder {
   }
 
   h1 {
-    font-size: 44px;
+    font-size: 38px;
   }
 
-  .summary-card strong {
+  .top-status-grid {
+    gap: 7px;
+  }
+
+  .person-mini {
+    padding: 10px;
+  }
+
+  .home-subtabs button {
     font-size: 12px;
-  }
-
-  .summary-card small {
-    font-size: 9px;
   }
 
   .answer-grid {

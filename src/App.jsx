@@ -27,6 +27,7 @@ const EMPTY_PERSON = {
   battery: "",
   updatedAt: "",
   location: null,
+  pulseAt: "",
 };
 
 const partnerOf = {
@@ -34,12 +35,7 @@ const partnerOf = {
   Nela: "Manuel",
 };
 
-const moodOptions = [
-  "😊 Gut",
-  "😴 Müde",
-  "❤️ Vermisse dich",
-  "😔 Schwerer Tag",
-];
+const moodOptions = ["😊 Gut", "😴 Müde", "❤️ Vermisse dich", "😔 Schwerer Tag"];
 
 const activityOptions = [
   "🏠 Zuhause",
@@ -76,14 +72,9 @@ const dailyQuestions = [
 try {
   delete L.Icon.Default.prototype._getIconUrl;
   L.Icon.Default.mergeOptions({
-    iconRetinaUrl: new URL(
-      "leaflet/dist/images/marker-icon-2x.png",
-      import.meta.url
-    ).href,
-    iconUrl: new URL("leaflet/dist/images/marker-icon.png", import.meta.url)
-      .href,
-    shadowUrl: new URL("leaflet/dist/images/marker-shadow.png", import.meta.url)
-      .href,
+    iconRetinaUrl: new URL("leaflet/dist/images/marker-icon-2x.png", import.meta.url).href,
+    iconUrl: new URL("leaflet/dist/images/marker-icon.png", import.meta.url).href,
+    shadowUrl: new URL("leaflet/dist/images/marker-shadow.png", import.meta.url).href,
   });
 } catch {
   // ignore
@@ -99,8 +90,7 @@ function getLocalDateKey(date = new Date()) {
 
 function getQuestionForDate(dayKey) {
   const parts = dayKey.split("-").map(Number);
-  const index =
-    (parts[0] * 10000 + parts[1] * 100 + parts[2]) % dailyQuestions.length;
+  const index = (parts[0] * 10000 + parts[1] * 100 + parts[2]) % dailyQuestions.length;
   return dailyQuestions[index];
 }
 
@@ -186,19 +176,18 @@ function statusText(iso) {
 
   if (diff === null) return "noch nichts geteilt";
   if (diff < 1) return "gerade geändert";
-  if (diff === 1) return "vor 1 Min. geändert";
-  if (diff < 60) return `vor ${diff} Min. geändert`;
+  if (diff === 1) return "vor 1 Min.";
+  if (diff < 60) return `vor ${diff} Min.`;
 
   const hours = Math.floor(diff / 60);
-  if (hours === 1) return "vor 1 Std. geändert";
-  if (hours < 24) return `vor ${hours} Std. geändert`;
+  if (hours === 1) return "vor 1 Std.";
+  if (hours < 24) return `vor ${hours} Std.`;
 
-  return "heute noch nichts geteilt";
+  return "älter";
 }
 
 function statusDot(iso) {
   const diff = minutesSince(iso);
-
   if (diff === null) return "idle";
   if (diff < 60) return "fresh";
   if (diff < 24 * 60) return "old";
@@ -238,6 +227,7 @@ function haversineKm(a, b) {
 
 export default function App() {
   const [tab, setTab] = useState("home");
+  const [homeSection, setHomeSection] = useState("near");
   const [user, setUser] = useState(localStorage.getItem("wespace_user") || "");
   const [data, setData] = useState(createDefaultData);
   const [messages, setMessages] = useState([]);
@@ -270,6 +260,8 @@ export default function App() {
         );
 
   const distanceKm = haversineKm(data.Manuel?.location, data.Nela?.location);
+  const questionAnsweredByMe = Boolean(data.dailyQuestion?.answers?.[user]);
+  const questionAnsweredByOther = Boolean(data.dailyQuestion?.answers?.[partner]);
 
   useEffect(() => {
     const cached = localStorage.getItem("wespace_status");
@@ -370,12 +362,19 @@ export default function App() {
       localStorage.setItem("wespace_last_read", String(count));
     }
 
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    setTimeout(() => {
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }, 80);
   }, [messages, tab, user]);
 
   useEffect(() => {
     setQuestionDraft(data.dailyQuestion?.answers?.[user] || "");
-  }, [data.dailyQuestion?.day, data.dailyQuestion?.answers, user]);
+  }, [
+    data.dailyQuestion?.day,
+    data.dailyQuestion?.answers?.Manuel,
+    data.dailyQuestion?.answers?.Nela,
+    user,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -433,6 +432,19 @@ export default function App() {
         [user]: nextPerson,
       },
       label
+    );
+  }
+
+  function sendPulse() {
+    if (!user) return;
+
+    updateMyData(
+      {
+        hearts: (me.hearts || 0) + 1,
+        proximity: "❤️ Ich vermisse dich",
+        pulseAt: new Date().toISOString(),
+      },
+      `❤️ Puls an ${partner} gesendet`
     );
   }
 
@@ -574,72 +586,39 @@ export default function App() {
     <main className="app">
       {notification && <div className="toast">{notification}</div>}
 
-      <section className="hero">
+      <section className="hero compact-hero">
         <p className="tag">unser kleiner ort</p>
         <h1>WeSpace</h1>
-        <p className="subtitle">
-          Ein Ort für Nähe, auch wenn Entfernung dazwischen liegt.
-        </p>
+        <p className="subtitle">Ein Ort für Nähe, auch wenn Entfernung dazwischen liegt.</p>
       </section>
 
       {!isOnline && (
-        <div className="offline-banner">
-          Offline – Live-Daten werden später aktualisiert
-        </div>
+        <div className="offline-banner">Offline – Live-Daten werden später aktualisiert</div>
       )}
 
       <section className="tabs three">
-        <button
-          className={tab === "home" ? "active" : ""}
-          onClick={() => setTab("home")}
-        >
+        <button className={tab === "home" ? "active" : ""} onClick={() => setTab("home")}>
           Heute
         </button>
 
-        <button
-          className={tab === "chat" ? "active" : ""}
-          onClick={() => setTab("chat")}
-        >
+        <button className={tab === "chat" ? "active" : ""} onClick={() => setTab("chat")}>
           Chat
           {unread > 0 && <span className="notify">{unread}</span>}
         </button>
 
-        <button
-          className={tab === "map" ? "active" : ""}
-          onClick={() => setTab("map")}
-        >
+        <button className={tab === "map" ? "active" : ""} onClick={() => setTab("map")}>
           Karte
         </button>
       </section>
 
       {tab === "home" && (
         <>
-          <section className="summary-grid">
-            <div className="summary-card">
-              <span>❤️</span>
-              <strong>Heute</strong>
-              <small>gemeinsamer Tagesraum</small>
-            </div>
-
-            <div className="summary-card">
-              <span>📍</span>
-              <strong>{distanceKm !== null ? `${distanceKm} km` : "—"}</strong>
-              <small>Entfernung</small>
-            </div>
-
-            <div className="summary-card">
-              <span>⏳</span>
-              <strong>180 Tage</strong>
-              <small>bis Wiedersehen</small>
-            </div>
-          </section>
-
-          <section className="people-grid">
+          <section className="top-status-grid">
             {["Manuel", "Nela"].map((name) => {
               const person = data[name] || EMPTY_PERSON;
 
               return (
-                <article className="person-card" key={name}>
+                <article className="person-mini" key={name}>
                   <header>
                     <strong>{name}</strong>
                     <small>
@@ -648,200 +627,252 @@ export default function App() {
                     </small>
                   </header>
 
-                  <div className="person-lines">
-                    <p>
-                      <span>Stimmung</span>
-                      <b>{person.mood || "—"}</b>
-                    </p>
-                    <p>
-                      <span>Aktivität</span>
-                      <b>{person.status || "—"}</b>
-                    </p>
-                    <p>
-                      <span>Bedürfnis</span>
-                      <b>{person.proximity || "—"}</b>
-                    </p>
-                    <p>
-                      <span>Schlaf</span>
-                      <b>{person.sleep || "—"}</b>
-                    </p>
+                  <div className="mini-line">
+                    <span>{person.mood || "keine Stimmung"}</span>
+                    <b>{person.status || "—"}</b>
                   </div>
+
+                  <p>{person.proximity || "noch kein Nähe-Signal"}</p>
                 </article>
               );
             })}
           </section>
 
-          <section className="card">
-            <h3>Gefühl</h3>
-            <div className="button-grid">
-              {moodOptions.map((item) => (
-                <button
-                  key={item}
-                  className={me.mood === item ? "active" : ""}
-                  onClick={() => updateMyData({ mood: item }, "Stimmung geteilt")}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="card">
-            <h3>Alltag</h3>
-            <div className="button-grid">
-              {activityOptions.map((item) => (
-                <button
-                  key={item}
-                  className={me.status === item ? "active" : ""}
-                  onClick={() =>
-                    updateMyData({ status: item }, "Aktivität geteilt")
-                  }
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="card">
-            <h3>Nähe</h3>
-            <div className="button-grid">
-              {proximityOptions.map((item) => (
-                <button
-                  key={item}
-                  className={me.proximity === item ? "active" : ""}
-                  onClick={() =>
-                    updateMyData({ proximity: item }, "Nähe-Signal geteilt")
-                  }
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-
-            {data.Manuel?.sleep === "Schlafend" &&
-              data.Nela?.sleep === "Schlafend" && (
-                <p className="both-sleep">⭐ Ihr schlaft beide gerade</p>
-              )}
-          </section>
-
-          <section className="card">
-            <h3>Frage des Tages</h3>
-            <p className="question-text">
-              {data.dailyQuestion?.question || getQuestionForDate(todayKey)}
-            </p>
-
-            <textarea
-              placeholder="Deine Antwort..."
-              value={questionDraft}
-              onChange={(e) => setQuestionDraft(e.target.value)}
-            />
-
-            <button className="save-button" onClick={saveDailyAnswer}>
-              Antwort speichern
+          <section className="pulse-card">
+            <button onClick={sendPulse}>
+              <span>❤️</span>
+              <strong>Ich vermisse dich</strong>
+              <small>Puls an {partner} senden</small>
             </button>
 
-            <div className="answer-grid">
-              <div>
-                <strong>Manuel</strong>
-                <p>{data.dailyQuestion?.answers?.Manuel || "Noch offen"}</p>
-              </div>
-              <div>
-                <strong>Nela</strong>
-                <p>{data.dailyQuestion?.answers?.Nela || "Noch offen"}</p>
-              </div>
+            <div className="pulse-stats">
+              <p>
+                <b>{data.Manuel?.hearts || 0}</b>
+                <span>Manuel</span>
+              </p>
+              <p>
+                <b>{distanceKm !== null ? `${distanceKm} km` : "—"}</b>
+                <span>Entfernung</span>
+              </p>
+              <p>
+                <b>{data.Nela?.hearts || 0}</b>
+                <span>Nela</span>
+              </p>
             </div>
           </section>
 
-          <section className="card">
-            <h3>Tagesmoment</h3>
-
-            <textarea
-              placeholder="Ein Satz aus deinem Tag..."
-              value={me.moment || ""}
-              onChange={(e) =>
-                setData((current) => ({
-                  ...current,
-                  [user]: {
-                    ...(current[user] || EMPTY_PERSON),
-                    moment: e.target.value,
-                  },
-                }))
-              }
-            />
-
-            <button className="save-button" onClick={saveMoment}>
-              Moment speichern
+          <section className="home-subtabs">
+            <button className={homeSection === "near" ? "active" : ""} onClick={() => setHomeSection("near")}>
+              Nähe
             </button>
-
-            <div className="answer-grid">
-              <div>
-                <strong>Manuel</strong>
-                <p>{data.Manuel?.moment || "Noch nichts geteilt"}</p>
-              </div>
-              <div>
-                <strong>Nela</strong>
-                <p>{data.Nela?.moment || "Noch nichts geteilt"}</p>
-              </div>
-            </div>
+            <button className={homeSection === "question" ? "active" : ""} onClick={() => setHomeSection("question")}>
+              Frage
+              {questionAnsweredByOther && !questionAnsweredByMe && <i />}
+            </button>
+            <button className={homeSection === "moment" ? "active" : ""} onClick={() => setHomeSection("moment")}>
+              Moment
+            </button>
+            <button className={homeSection === "capsule" ? "active" : ""} onClick={() => setHomeSection("capsule")}>
+              Kapsel
+            </button>
           </section>
 
-          <section className="card">
-            <h3>Zeitkapsel</h3>
-
-            <textarea
-              placeholder="Nachricht für später..."
-              value={capsuleText}
-              onChange={(e) => setCapsuleText(e.target.value)}
-            />
-
-            <div className="capsule-row">
-              <input
-                type="date"
-                value={capsuleDate}
-                onChange={(e) => setCapsuleDate(e.target.value)}
-              />
-              <button onClick={saveCapsule}>Speichern</button>
-            </div>
-
-            <div className="capsule-list">
-              {(data.timeCapsules || []).length === 0 && (
-                <p className="empty-small">Noch keine Zeitkapseln</p>
-              )}
-
-              {(data.timeCapsules || []).slice(0, 5).map((capsule) => (
-                <div className="capsule-item" key={capsule.id}>
-                  <div>
-                    <strong>{capsule.owner}</strong>
-                    <small>{capsule.targetDate}</small>
-                  </div>
-
-                  {capsule.targetDate <= todayKey ? (
-                    <p>{capsule.text}</p>
-                  ) : (
-                    <p className="locked">Noch verschlossen</p>
-                  )}
+          {homeSection === "near" && (
+            <>
+              <section className="card compact-card">
+                <h3>Gefühl</h3>
+                <div className="button-grid compact-buttons">
+                  {moodOptions.map((item) => (
+                    <button
+                      key={item}
+                      className={me.mood === item ? "active" : ""}
+                      onClick={() => updateMyData({ mood: item }, "Stimmung geteilt")}
+                    >
+                      {item}
+                    </button>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </section>
+              </section>
+
+              <section className="card compact-card">
+                <h3>Alltag</h3>
+                <div className="button-grid compact-buttons">
+                  {activityOptions.map((item) => (
+                    <button
+                      key={item}
+                      className={me.status === item ? "active" : ""}
+                      onClick={() => updateMyData({ status: item }, "Aktivität geteilt")}
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section className="card compact-card">
+                <h3>Nähe-Signal</h3>
+                <div className="button-grid compact-buttons">
+                  {proximityOptions.map((item) => (
+                    <button
+                      key={item}
+                      className={me.proximity === item ? "active" : ""}
+                      onClick={() => updateMyData({ proximity: item }, "Nähe-Signal geteilt")}
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+
+                {data.Manuel?.sleep === "Schlafend" && data.Nela?.sleep === "Schlafend" && (
+                  <p className="both-sleep">⭐ Ihr schlaft beide gerade</p>
+                )}
+              </section>
+            </>
+          )}
+
+          {homeSection === "question" && (
+            <section className="card feature-card">
+              <div className="feature-head">
+                <div>
+                  <p className="tag">jeden tag neu</p>
+                  <h3>Frage des Tages</h3>
+                </div>
+                <span>💭</span>
+              </div>
+
+              <p className="question-text">
+                {data.dailyQuestion?.question || getQuestionForDate(todayKey)}
+              </p>
+
+              <textarea
+                placeholder="Deine Antwort..."
+                value={questionDraft}
+                onChange={(e) => setQuestionDraft(e.target.value)}
+              />
+
+              <button className="save-button" onClick={saveDailyAnswer}>
+                Antwort speichern
+              </button>
+
+              <div className="answer-grid">
+                <div>
+                  <strong>Manuel</strong>
+                  <p>{data.dailyQuestion?.answers?.Manuel || "Noch offen"}</p>
+                </div>
+                <div>
+                  <strong>Nela</strong>
+                  <p>{data.dailyQuestion?.answers?.Nela || "Noch offen"}</p>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {homeSection === "moment" && (
+            <section className="card feature-card">
+              <div className="feature-head">
+                <div>
+                  <p className="tag">ein satz reicht</p>
+                  <h3>Tagesmoment</h3>
+                </div>
+                <span>📸</span>
+              </div>
+
+              <textarea
+                placeholder="Ein Satz aus deinem Tag..."
+                value={me.moment || ""}
+                onChange={(e) =>
+                  setData((current) => ({
+                    ...current,
+                    [user]: {
+                      ...(current[user] || EMPTY_PERSON),
+                      moment: e.target.value,
+                    },
+                  }))
+                }
+              />
+
+              <button className="save-button" onClick={saveMoment}>
+                Moment speichern
+              </button>
+
+              <div className="answer-grid">
+                <div>
+                  <strong>Manuel</strong>
+                  <p>{data.Manuel?.moment || "Noch nichts geteilt"}</p>
+                </div>
+                <div>
+                  <strong>Nela</strong>
+                  <p>{data.Nela?.moment || "Noch nichts geteilt"}</p>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {homeSection === "capsule" && (
+            <section className="card feature-card">
+              <div className="feature-head">
+                <div>
+                  <p className="tag">für später</p>
+                  <h3>Zeitkapsel</h3>
+                </div>
+                <span>🔒</span>
+              </div>
+
+              <p className="muted capsule-explain">
+                Schreib etwas, das erst an einem bestimmten Tag sichtbar wird. Eher für besondere Tage, nicht für Alltag.
+              </p>
+
+              <textarea
+                placeholder="Nachricht für später..."
+                value={capsuleText}
+                onChange={(e) => setCapsuleText(e.target.value)}
+              />
+
+              <div className="capsule-row">
+                <input type="date" value={capsuleDate} onChange={(e) => setCapsuleDate(e.target.value)} />
+                <button onClick={saveCapsule}>Speichern</button>
+              </div>
+
+              <div className="capsule-list">
+                {(data.timeCapsules || []).length === 0 && (
+                  <p className="empty-small">Noch keine Zeitkapseln</p>
+                )}
+
+                {(data.timeCapsules || []).slice(0, 5).map((capsule) => (
+                  <div className="capsule-item" key={capsule.id}>
+                    <div>
+                      <strong>{capsule.owner}</strong>
+                      <small>{capsule.targetDate}</small>
+                    </div>
+
+                    {capsule.targetDate <= todayKey ? (
+                      <p>{capsule.text}</p>
+                    ) : (
+                      <p className="locked">Noch verschlossen</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </>
       )}
 
       {tab === "chat" && (
         <section className="card chat-card">
-          <h3>Unser Chat</h3>
+          <div className="chat-title">
+            <div>
+              <p className="tag">kurz schreiben</p>
+              <h3>Unser Chat</h3>
+            </div>
+            <small>{messages.length} Nachrichten</small>
+          </div>
 
           <div className="chat-box">
-            {messages.length === 0 && (
-              <p className="empty-small">Noch keine Nachrichten</p>
-            )}
+            {messages.length === 0 && <p className="empty-small">Noch keine Nachrichten</p>}
 
             {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`message ${message.name === user ? "mine" : ""}`}
-              >
+              <div key={message.id} className={`message ${message.name === user ? "mine" : ""}`}>
                 <strong>{message.name}</strong>
                 <span>{message.text}</span>
               </div>
@@ -850,7 +881,7 @@ export default function App() {
             <div ref={chatEndRef} />
           </div>
 
-          <div className="send-row">
+          <div className="send-row sticky-send">
             <input
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}
@@ -884,20 +915,13 @@ export default function App() {
               />
 
               {data.Manuel?.location && (
-                <Marker
-                  position={[
-                    data.Manuel.location.lat,
-                    data.Manuel.location.lng,
-                  ]}
-                >
+                <Marker position={[data.Manuel.location.lat, data.Manuel.location.lng]}>
                   <Popup>Manuel – {timeText(data.Manuel.location.updatedAt)}</Popup>
                 </Marker>
               )}
 
               {data.Nela?.location && (
-                <Marker
-                  position={[data.Nela.location.lat, data.Nela.location.lng]}
-                >
+                <Marker position={[data.Nela.location.lat, data.Nela.location.lng]}>
                   <Popup>Nela – {timeText(data.Nela.location.updatedAt)}</Popup>
                 </Marker>
               )}
@@ -909,8 +933,7 @@ export default function App() {
           </button>
 
           <p className="muted">
-            Kein Background-Tracking. Standort wird nur geteilt, wenn du den
-            Button drückst.
+            Kein Background-Tracking. Standort wird nur geteilt, wenn du den Button drückst.
           </p>
         </section>
       )}
