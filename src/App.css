@@ -393,8 +393,20 @@ h3 {
   display: grid;
   gap: 7px;
   max-height: 165px;
-  overflow-y: auto;
+  overflow-y: scroll;
+  overflow-x: hidden;
   padding-right: 3px;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.signals-list {
+  scrollbar-width: thin;
+}
+
+.signal-item {
+  touch-action: pan-y;
 }
 
 .signals-list::-webkit-scrollbar {
