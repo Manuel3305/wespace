@@ -30,6 +30,11 @@ const EMPTY_PERSON = {
   pulseAt: "",
 };
 
+const EMPTY_CHALLENGE_ANSWER = {
+  done: false,
+  text: "",
+};
+
 const partnerOf = {
   Manuel: "Nela",
   Nela: "Manuel",
@@ -69,6 +74,19 @@ const dailyQuestions = [
   "Was ist heute anders als gestern?",
 ];
 
+const photoChallenges = [
+  "Mach ein Foto von etwas, das dich heute zum Lächeln gebracht hat.",
+  "Zeig mir deinen Himmel.",
+  "Mach ein Foto von etwas, das dich heute an mich erinnert.",
+  "Zeig mir deinen aktuellen Ausblick.",
+  "Mach ein Foto von deinem Getränk oder Essen.",
+  "Zeig mir etwas Kleines aus deinem Tag.",
+  "Mach ein Foto von etwas, das du schön findest.",
+  "Zeig mir, wo du gerade kurz zur Ruhe kommst.",
+  "Mach ein Foto von etwas, das deine Stimmung beschreibt.",
+  "Zeig mir etwas, das ich heute nicht sehen konnte.",
+];
+
 try {
   delete L.Icon.Default.prototype._getIconUrl;
   L.Icon.Default.mergeOptions({
@@ -88,10 +106,17 @@ function getLocalDateKey(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-function getQuestionForDate(dayKey) {
+function getIndexForDate(dayKey, length) {
   const parts = dayKey.split("-").map(Number);
-  const index = (parts[0] * 10000 + parts[1] * 100 + parts[2]) % dailyQuestions.length;
-  return dailyQuestions[index];
+  return (parts[0] * 10000 + parts[1] * 100 + parts[2]) % length;
+}
+
+function getQuestionForDate(dayKey) {
+  return dailyQuestions[getIndexForDate(dayKey, dailyQuestions.length)];
+}
+
+function getPhotoChallengeForDate(dayKey) {
+  return photoChallenges[getIndexForDate(dayKey, photoChallenges.length)];
 }
 
 function createDailyQuestion(dayKey) {
@@ -105,12 +130,24 @@ function createDailyQuestion(dayKey) {
   };
 }
 
+function createPhotoChallenge(dayKey) {
+  return {
+    day: dayKey,
+    prompt: getPhotoChallengeForDate(dayKey),
+    answers: {
+      Manuel: { ...EMPTY_CHALLENGE_ANSWER },
+      Nela: { ...EMPTY_CHALLENGE_ANSWER },
+    },
+  };
+}
+
 function createDefaultData() {
   const today = getLocalDateKey();
 
   return {
     currentDay: today,
     dailyQuestion: createDailyQuestion(today),
+    photoChallenge: createPhotoChallenge(today),
     timeCapsules: [],
     Manuel: { ...EMPTY_PERSON },
     Nela: { ...EMPTY_PERSON },
@@ -125,6 +162,28 @@ function normalizePerson(person = {}) {
   };
 }
 
+function normalizeChallengeAnswer(answer = {}) {
+  return {
+    ...EMPTY_CHALLENGE_ANSWER,
+    ...answer,
+  };
+}
+
+function normalizePhotoChallenge(rawChallenge, today) {
+  if (!rawChallenge || rawChallenge.day !== today) {
+    return createPhotoChallenge(today);
+  }
+
+  return {
+    day: today,
+    prompt: rawChallenge.prompt || getPhotoChallengeForDate(today),
+    answers: {
+      Manuel: normalizeChallengeAnswer(rawChallenge.answers?.Manuel),
+      Nela: normalizeChallengeAnswer(rawChallenge.answers?.Nela),
+    },
+  };
+}
+
 function normalizeData(raw = {}) {
   const today = getLocalDateKey();
   const savedDay = raw.dailyQuestion?.day || raw.currentDay || today;
@@ -136,6 +195,7 @@ function normalizeData(raw = {}) {
     dailyQuestion: isNewDay
       ? createDailyQuestion(today)
       : raw.dailyQuestion || createDailyQuestion(today),
+    photoChallenge: normalizePhotoChallenge(raw.photoChallenge, today),
     timeCapsules: raw.timeCapsules || [],
     Manuel: {
       ...normalizePerson(raw.Manuel),
@@ -233,6 +293,8 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [messageText, setMessageText] = useState("");
   const [questionDraft, setQuestionDraft] = useState("");
+  const [challengeDraft, setChallengeDraft] = useState("");
+  const [challengeDone, setChallengeDone] = useState(false);
   const [capsuleText, setCapsuleText] = useState("");
   const [capsuleDate, setCapsuleDate] = useState(getLocalDateKey());
   const [isOnline, setIsOnline] = useState(
@@ -242,9 +304,13 @@ export default function App() {
     Number(localStorage.getItem("wespace_last_read")) || 0
   );
   const [notification, setNotification] = useState("");
+  const [notificationPermission, setNotificationPermission] = useState(
+    typeof Notification !== "undefined" ? Notification.permission : "unsupported"
+  );
 
   const chatEndRef = useRef(null);
   const notificationTimer = useRef(null);
+  const partnerPulseRef = useRef("");
 
   const partner = partnerOf[user] || "Nela";
   const me = data[user] || EMPTY_PERSON;
@@ -262,6 +328,10 @@ export default function App() {
   const distanceKm = haversineKm(data.Manuel?.location, data.Nela?.location);
   const questionAnsweredByMe = Boolean(data.dailyQuestion?.answers?.[user]);
   const questionAnsweredByOther = Boolean(data.dailyQuestion?.answers?.[partner]);
+  const challengeAnswerMe =
+    data.photoChallenge?.answers?.[user] || EMPTY_CHALLENGE_ANSWER;
+  const challengeAnswerOther =
+    data.photoChallenge?.answers?.[partner] || EMPTY_CHALLENGE_ANSWER;
 
   useEffect(() => {
     const cached = localStorage.getItem("wespace_status");
@@ -377,6 +447,38 @@ export default function App() {
   ]);
 
   useEffect(() => {
+    const answer = data.photoChallenge?.answers?.[user] || EMPTY_CHALLENGE_ANSWER;
+    setChallengeDraft(answer.text || "");
+    setChallengeDone(Boolean(answer.done));
+  }, [
+    data.photoChallenge?.day,
+    data.photoChallenge?.answers?.Manuel?.text,
+    data.photoChallenge?.answers?.Manuel?.done,
+    data.photoChallenge?.answers?.Nela?.text,
+    data.photoChallenge?.answers?.Nela?.done,
+    user,
+  ]);
+
+  useEffect(() => {
+    if (!user || !partner) return;
+
+    const pulseAt = data[partner]?.pulseAt || "";
+
+    if (!partnerPulseRef.current) {
+      partnerPulseRef.current = pulseAt;
+      return;
+    }
+
+    if (pulseAt && pulseAt !== partnerPulseRef.current) {
+      const text = `❤️ ${partner} vermisst dich gerade`;
+      flash(text);
+      showBrowserNotification("WeSpace", text);
+    }
+
+    partnerPulseRef.current = pulseAt;
+  }, [data.Manuel?.pulseAt, data.Nela?.pulseAt, user, partner]);
+
+  useEffect(() => {
     return () => {
       if (notificationTimer.current) clearTimeout(notificationTimer.current);
     };
@@ -390,7 +492,40 @@ export default function App() {
   function flash(text) {
     setNotification(text);
     if (notificationTimer.current) clearTimeout(notificationTimer.current);
-    notificationTimer.current = setTimeout(() => setNotification(""), 3500);
+    notificationTimer.current = setTimeout(() => setNotification(""), 4000);
+  }
+
+  function showBrowserNotification(title, body) {
+    if (typeof Notification === "undefined") return;
+    if (Notification.permission !== "granted") return;
+
+    try {
+      new Notification(title, {
+        body,
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  async function requestNotifications() {
+    if (typeof Notification === "undefined") {
+      flash("Benachrichtigungen werden hier nicht unterstützt");
+      setNotificationPermission("unsupported");
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
+
+    if (permission === "granted") {
+      flash("Benachrichtigungen aktiviert");
+      showBrowserNotification("WeSpace", "Benachrichtigungen sind aktiviert ❤️");
+    } else {
+      flash("Benachrichtigungen nicht erlaubt");
+    }
   }
 
   async function saveStatus(nextData, bannerText = "") {
@@ -441,7 +576,6 @@ export default function App() {
     updateMyData(
       {
         hearts: (me.hearts || 0) + 1,
-        proximity: "❤️ Ich vermisse dich",
         pulseAt: new Date().toISOString(),
       },
       `❤️ Puls an ${partner} gesendet`
@@ -514,6 +648,33 @@ export default function App() {
 
   function saveMoment() {
     updateMyData({ moment: me.moment || "" }, "Moment gespeichert");
+  }
+
+  function saveChallengeAnswer() {
+    const photoChallenge =
+      data.photoChallenge?.day === todayKey
+        ? data.photoChallenge
+        : createPhotoChallenge(todayKey);
+
+    saveStatus(
+      {
+        ...data,
+        currentDay: todayKey,
+        photoChallenge: {
+          ...photoChallenge,
+          day: todayKey,
+          prompt: getPhotoChallengeForDate(todayKey),
+          answers: {
+            ...photoChallenge.answers,
+            [user]: {
+              done: challengeDone,
+              text: challengeDraft.trim(),
+            },
+          },
+        },
+      },
+      "Foto-Aufgabe gespeichert"
+    );
   }
 
   function saveCapsule() {
@@ -659,6 +820,12 @@ export default function App() {
                 <span>Nela</span>
               </p>
             </div>
+
+            {notificationPermission !== "granted" && notificationPermission !== "unsupported" && (
+              <button className="permission-button" onClick={requestNotifications}>
+                🔔 Benachrichtigungen aktivieren
+              </button>
+            )}
           </section>
 
           <section className="home-subtabs">
@@ -671,6 +838,10 @@ export default function App() {
             </button>
             <button className={homeSection === "moment" ? "active" : ""} onClick={() => setHomeSection("moment")}>
               Moment
+            </button>
+            <button className={homeSection === "challenge" ? "active" : ""} onClick={() => setHomeSection("challenge")}>
+              Foto
+              {challengeAnswerOther.done && !challengeAnswerMe.done && <i />}
             </button>
             <button className={homeSection === "capsule" ? "active" : ""} onClick={() => setHomeSection("capsule")}>
               Kapsel
@@ -803,6 +974,56 @@ export default function App() {
                 <div>
                   <strong>Nela</strong>
                   <p>{data.Nela?.moment || "Noch nichts geteilt"}</p>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {homeSection === "challenge" && (
+            <section className="card feature-card">
+              <div className="feature-head">
+                <div>
+                  <p className="tag">foto-aufgabe</p>
+                  <h3>Heutige Challenge</h3>
+                </div>
+                <span>📷</span>
+              </div>
+
+              <div className="photo-task">
+                <strong>{data.photoChallenge?.prompt || getPhotoChallengeForDate(todayKey)}</strong>
+                <p>
+                  Foto machst du erstmal normal mit der Kamera. Hier trägst du ein, was auf dem Bild ist.
+                  Echter Upload kommt später.
+                </p>
+              </div>
+
+              <label className="challenge-check">
+                <input
+                  type="checkbox"
+                  checked={challengeDone}
+                  onChange={(e) => setChallengeDone(e.target.checked)}
+                />
+                <span>Foto gemacht</span>
+              </label>
+
+              <textarea
+                placeholder="Was zeigt dein Foto?"
+                value={challengeDraft}
+                onChange={(e) => setChallengeDraft(e.target.value)}
+              />
+
+              <button className="save-button" onClick={saveChallengeAnswer}>
+                Foto-Aufgabe speichern
+              </button>
+
+              <div className="answer-grid">
+                <div>
+                  <strong>Manuel {data.photoChallenge?.answers?.Manuel?.done ? "✓" : ""}</strong>
+                  <p>{data.photoChallenge?.answers?.Manuel?.text || "Noch offen"}</p>
+                </div>
+                <div>
+                  <strong>Nela {data.photoChallenge?.answers?.Nela?.done ? "✓" : ""}</strong>
+                  <p>{data.photoChallenge?.answers?.Nela?.text || "Noch offen"}</p>
                 </div>
               </div>
             </section>
