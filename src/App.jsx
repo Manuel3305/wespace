@@ -16,6 +16,8 @@ import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 
 const SPACE_ID = "ManuelNela";
+const PULSE_LIMIT_PER_DAY = 5;
+const PULSE_COOLDOWN_MINUTES = 30;
 
 const EMPTY_PERSON = {
   hearts: 0,
@@ -149,6 +151,7 @@ function createDefaultData() {
     dailyQuestion: createDailyQuestion(today),
     photoChallenge: createPhotoChallenge(today),
     timeCapsules: [],
+    signals: [],
     Manuel: { ...EMPTY_PERSON },
     Nela: { ...EMPTY_PERSON },
   };
@@ -197,6 +200,7 @@ function normalizeData(raw = {}) {
       : raw.dailyQuestion || createDailyQuestion(today),
     photoChallenge: normalizePhotoChallenge(raw.photoChallenge, today),
     timeCapsules: raw.timeCapsules || [],
+    signals: raw.signals || [],
     Manuel: {
       ...normalizePerson(raw.Manuel),
       ...(isNewDay
@@ -267,6 +271,21 @@ function timeText(iso) {
   return `vor ${hours} Stunden`;
 }
 
+function clockText(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return d.toLocaleTimeString("de-DE", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function pulseCooldownLeftMinutes(iso) {
+  const diff = minutesSince(iso);
+  if (diff === null) return 0;
+  return Math.max(0, PULSE_COOLDOWN_MINUTES - diff);
+}
+
 function haversineKm(a, b) {
   if (!a || !b) return null;
 
@@ -283,6 +302,31 @@ function haversineKm(a, b) {
       Math.sin(dLng / 2);
 
   return Math.round(R * (2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x))));
+}
+
+function activityMessage(name, value) {
+  const map = {
+    "🏠 Zuhause": `${name} ist gerade zuhause`,
+    "🚗 Unterwegs": `${name} ist gerade unterwegs`,
+    "💼 Arbeit": `${name} ist auf Arbeit`,
+    "🍽 Essen": `${name} isst gerade`,
+    "🏐 Sport": `${name} macht gerade Sport`,
+    "🎮 Zocken": `${name} ist gerade am Zocken`,
+  };
+
+  return map[value] || `${name} hat den Alltag aktualisiert`;
+}
+
+function proximityMessage(name, value) {
+  const map = {
+    "❤️ Denk an dich": `${name} denkt an dich`,
+    "🫂 Brauche Nähe": `${name} braucht gerade Nähe`,
+    "😔 Vermisse dich": `${name} vermisst dich`,
+    "🌙 Gute Nacht": `${name} geht jetzt schlafen`,
+    "☎️ Kurz reden?": `${name} möchte kurz reden`,
+  };
+
+  return map[value] || `${name} hat ein Nähe-Signal geteilt`;
 }
 
 export default function App() {
@@ -310,7 +354,7 @@ export default function App() {
 
   const chatEndRef = useRef(null);
   const notificationTimer = useRef(null);
-  const partnerPulseRef = useRef("");
+  const lastSignalRef = useRef("");
 
   const partner = partnerOf[user] || "Nela";
   const me = data[user] || EMPTY_PERSON;
@@ -332,6 +376,10 @@ export default function App() {
     data.photoChallenge?.answers?.[user] || EMPTY_CHALLENGE_ANSWER;
   const challengeAnswerOther =
     data.photoChallenge?.answers?.[partner] || EMPTY_CHALLENGE_ANSWER;
+
+  const myCooldownLeft = pulseCooldownLeftMinutes(me.pulseAt);
+  const myPulsesLeft = Math.max(0, PULSE_LIMIT_PER_DAY - (me.hearts || 0));
+  const canSendPulse = myPulsesLeft > 0 && myCooldownLeft <= 0;
 
   useEffect(() => {
     const cached = localStorage.getItem("wespace_status");
@@ -460,23 +508,23 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    if (!user || !partner) return;
+    const latestPartnerSignal = (data.signals || [])
+      .filter((signal) => signal.from === partner)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
 
-    const pulseAt = data[partner]?.pulseAt || "";
+    if (!latestPartnerSignal) return;
 
-    if (!partnerPulseRef.current) {
-      partnerPulseRef.current = pulseAt;
+    if (!lastSignalRef.current) {
+      lastSignalRef.current = latestPartnerSignal.id;
       return;
     }
 
-    if (pulseAt && pulseAt !== partnerPulseRef.current) {
-      const text = `❤️ ${partner} vermisst dich gerade`;
-      flash(text);
-      showBrowserNotification("WeSpace", text);
+    if (latestPartnerSignal.id !== lastSignalRef.current) {
+      flash(latestPartnerSignal.text);
+      showBrowserNotification("WeSpace", latestPartnerSignal.text);
+      lastSignalRef.current = latestPartnerSignal.id;
     }
-
-    partnerPulseRef.current = pulseAt;
-  }, [data.Manuel?.pulseAt, data.Nela?.pulseAt, user, partner]);
+  }, [data.signals, partner]);
 
   useEffect(() => {
     return () => {
@@ -528,6 +576,23 @@ export default function App() {
     }
   }
 
+  function addSignal(baseData, type, text, meta = {}) {
+    const signal = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      type,
+      from: user,
+      to: partner,
+      text,
+      createdAt: new Date().toISOString(),
+      ...meta,
+    };
+
+    return {
+      ...baseData,
+      signals: [signal, ...(baseData.signals || [])].slice(0, 20),
+    };
+  }
+
   async function saveStatus(nextData, bannerText = "") {
     const normalized = normalizeData(nextData);
     setData(normalized);
@@ -545,7 +610,7 @@ export default function App() {
     }
   }
 
-  function updateMyData(partial, label = "Status aktualisiert") {
+  function updateMyData(partial, label = "Status aktualisiert", signalText = "") {
     if (!user) return;
 
     const nextPerson = {
@@ -560,26 +625,52 @@ export default function App() {
       updatedAt: new Date().toISOString(),
     };
 
-    saveStatus(
-      {
-        ...data,
-        currentDay: todayKey,
-        [user]: nextPerson,
-      },
-      label
-    );
+    let nextData = {
+      ...data,
+      currentDay: todayKey,
+      [user]: nextPerson,
+    };
+
+    if (signalText) {
+      nextData = addSignal(nextData, "status", signalText);
+    }
+
+    saveStatus(nextData, label);
   }
 
   function sendPulse() {
     if (!user) return;
 
-    updateMyData(
+    if ((me.hearts || 0) >= PULSE_LIMIT_PER_DAY) {
+      flash("Heute alle Pulse gesendet. Morgen wieder ❤️");
+      return;
+    }
+
+    if (myCooldownLeft > 0) {
+      flash(`Nächster Puls in ${myCooldownLeft} Min.`);
+      return;
+    }
+
+    const text = `❤️ ${user} vermisst dich gerade`;
+
+    const nextPerson = {
+      ...me,
+      hearts: (me.hearts || 0) + 1,
+      pulseAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const nextData = addSignal(
       {
-        hearts: (me.hearts || 0) + 1,
-        pulseAt: new Date().toISOString(),
+        ...data,
+        currentDay: todayKey,
+        [user]: nextPerson,
       },
-      `❤️ Puls an ${partner} gesendet`
+      "pulse",
+      text
     );
+
+    saveStatus(nextData, `❤️ Puls an ${partner} gesendet`);
   }
 
   async function sendMessage() {
@@ -628,7 +719,7 @@ export default function App() {
         ? data.dailyQuestion
         : createDailyQuestion(todayKey);
 
-    saveStatus(
+    const nextData = addSignal(
       {
         ...data,
         currentDay: todayKey,
@@ -642,12 +733,29 @@ export default function App() {
           },
         },
       },
-      "Antwort gespeichert"
+      "question",
+      `💭 ${user} hat die Frage des Tages beantwortet`
     );
+
+    saveStatus(nextData, "Antwort gespeichert");
   }
 
   function saveMoment() {
-    updateMyData({ moment: me.moment || "" }, "Moment gespeichert");
+    const nextData = addSignal(
+      {
+        ...data,
+        currentDay: todayKey,
+        [user]: {
+          ...me,
+          moment: me.moment || "",
+          updatedAt: new Date().toISOString(),
+        },
+      },
+      "moment",
+      `📸 ${user} hat einen Tagesmoment geteilt`
+    );
+
+    saveStatus(nextData, "Moment gespeichert");
   }
 
   function saveChallengeAnswer() {
@@ -656,7 +764,7 @@ export default function App() {
         ? data.photoChallenge
         : createPhotoChallenge(todayKey);
 
-    saveStatus(
+    const nextData = addSignal(
       {
         ...data,
         currentDay: todayKey,
@@ -673,8 +781,13 @@ export default function App() {
           },
         },
       },
-      "Foto-Aufgabe gespeichert"
+      "challenge",
+      challengeDone
+        ? `📷 ${user} hat die heutige Foto-Aufgabe geschafft`
+        : `📷 ${user} hat die Foto-Aufgabe aktualisiert`
     );
+
+    saveStatus(nextData, "Foto-Aufgabe gespeichert");
   }
 
   function saveCapsule() {
@@ -689,15 +802,17 @@ export default function App() {
       createdAt: new Date().toISOString(),
     };
 
-    saveStatus(
+    const nextData = addSignal(
       {
         ...data,
         currentDay: todayKey,
         timeCapsules: [capsule, ...(data.timeCapsules || [])],
       },
-      "Zeitkapsel gespeichert"
+      "capsule",
+      `🔒 ${user} hat eine Zeitkapsel versteckt – sichtbar am ${capsule.targetDate}`
     );
 
+    saveStatus(nextData, "Zeitkapsel gespeichert");
     setCapsuleText("");
   }
 
@@ -725,6 +840,8 @@ export default function App() {
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
     );
   }
+
+  const latestSignals = (data.signals || []).slice(0, 4);
 
   if (!user) {
     return (
@@ -800,24 +917,37 @@ export default function App() {
           </section>
 
           <section className="pulse-card">
-            <button onClick={sendPulse}>
+            <button className={!canSendPulse ? "disabled-pulse" : ""} onClick={sendPulse}>
               <span>❤️</span>
-              <strong>Ich vermisse dich</strong>
-              <small>Puls an {partner} senden</small>
+              <strong>
+                {myPulsesLeft <= 0
+                  ? "Heute alle Pulse gesendet"
+                  : myCooldownLeft > 0
+                  ? `Nächster Puls in ${myCooldownLeft} Min.`
+                  : "Ich vermisse dich"}
+              </strong>
+              <small>
+                {myPulsesLeft <= 0
+                  ? "Morgen wieder"
+                  : `${myPulsesLeft} von ${PULSE_LIMIT_PER_DAY} heute übrig`}
+              </small>
             </button>
 
             <div className="pulse-stats">
               <p>
                 <b>{data.Manuel?.hearts || 0}</b>
-                <span>Manuel</span>
+                <span>Manuel heute</span>
+                <small>{data.Manuel?.pulseAt ? clockText(data.Manuel.pulseAt) : "—"}</small>
               </p>
               <p>
                 <b>{distanceKm !== null ? `${distanceKm} km` : "—"}</b>
                 <span>Entfernung</span>
+                <small>Live</small>
               </p>
               <p>
                 <b>{data.Nela?.hearts || 0}</b>
-                <span>Nela</span>
+                <span>Nela heute</span>
+                <small>{data.Nela?.pulseAt ? clockText(data.Nela.pulseAt) : "—"}</small>
               </p>
             </div>
 
@@ -825,6 +955,26 @@ export default function App() {
               <button className="permission-button" onClick={requestNotifications}>
                 🔔 Benachrichtigungen aktivieren
               </button>
+            )}
+          </section>
+
+          <section className="signals-card">
+            <div className="signals-head">
+              <strong>Letzte Zeichen</strong>
+              <small>was gerade passiert ist</small>
+            </div>
+
+            {latestSignals.length === 0 ? (
+              <p className="empty-small">Noch keine Zeichen heute</p>
+            ) : (
+              <div className="signals-list">
+                {latestSignals.map((signal) => (
+                  <div key={signal.id} className="signal-item">
+                    <span>{signal.text}</span>
+                    <small>{clockText(signal.createdAt)}</small>
+                  </div>
+                ))}
+              </div>
             )}
           </section>
 
@@ -872,7 +1022,9 @@ export default function App() {
                     <button
                       key={item}
                       className={me.status === item ? "active" : ""}
-                      onClick={() => updateMyData({ status: item }, "Aktivität geteilt")}
+                      onClick={() =>
+                        updateMyData({ status: item }, "Aktivität geteilt", activityMessage(user, item))
+                      }
                     >
                       {item}
                     </button>
@@ -887,7 +1039,9 @@ export default function App() {
                     <button
                       key={item}
                       className={me.proximity === item ? "active" : ""}
-                      onClick={() => updateMyData({ proximity: item }, "Nähe-Signal geteilt")}
+                      onClick={() =>
+                        updateMyData({ proximity: item }, "Nähe-Signal geteilt", proximityMessage(user, item))
+                      }
                     >
                       {item}
                     </button>

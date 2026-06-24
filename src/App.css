@@ -67,7 +67,8 @@ h3 {
 .card,
 .person-mini,
 .summary-card,
-.pulse-card {
+.pulse-card,
+.signals-card {
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: rgba(255, 255, 255, 0.13);
   backdrop-filter: blur(18px);
@@ -286,13 +287,23 @@ h3 {
   box-shadow: 0 14px 35px rgba(255, 68, 118, 0.24);
 }
 
+.pulse-card button.disabled-pulse {
+  opacity: 0.7;
+  background: linear-gradient(135deg, rgba(130, 95, 140, 0.75), rgba(80, 55, 105, 0.72));
+}
+
 .pulse-card button span {
   font-size: 34px;
   animation: pulseHeart 1.4s infinite;
 }
 
+.pulse-card button.disabled-pulse span {
+  animation: none;
+}
+
 .pulse-card button strong {
   font-size: 19px;
+  text-align: center;
 }
 
 .pulse-card button small {
@@ -335,6 +346,12 @@ h3 {
   opacity: 0.65;
 }
 
+.pulse-stats small {
+  margin-top: 2px;
+  font-size: 10px;
+  opacity: 0.85;
+}
+
 .permission-button {
   width: 100%;
   min-height: auto !important;
@@ -347,6 +364,56 @@ h3 {
   font-weight: 800;
   background: rgba(255, 255, 255, 0.16) !important;
   box-shadow: none !important;
+}
+
+.signals-card {
+  margin-bottom: 10px;
+  padding: 12px;
+  border-radius: 22px;
+}
+
+.signals-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 9px;
+}
+
+.signals-head strong {
+  font-size: 15px;
+}
+
+.signals-head small {
+  font-size: 11px;
+  opacity: 0.65;
+}
+
+.signals-list {
+  display: grid;
+  gap: 7px;
+}
+
+.signal-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 9px;
+  align-items: center;
+  padding: 9px 10px;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.signal-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.signal-item small {
+  font-size: 11px;
+  opacity: 0.7;
 }
 
 .home-subtabs {
