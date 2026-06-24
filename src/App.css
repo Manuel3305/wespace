@@ -392,30 +392,6 @@ h3 {
 .signals-list {
   display: grid;
   gap: 7px;
-  max-height: 165px;
-  overflow-y: scroll;
-  overflow-x: hidden;
-  padding-right: 3px;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  touch-action: pan-y;
-}
-
-.signals-list {
-  scrollbar-width: thin;
-}
-
-.signal-item {
-  touch-action: pan-y;
-}
-
-.signals-list::-webkit-scrollbar {
-  width: 4px;
-}
-
-.signals-list::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.25);
 }
 
 .signal-item {
@@ -438,6 +414,18 @@ h3 {
 .signal-item small {
   font-size: 11px;
   opacity: 0.7;
+}
+
+.signals-more-button {
+  width: 100%;
+  margin-top: 9px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 15px;
+  color: white;
+  font-size: 12px;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .home-subtabs {

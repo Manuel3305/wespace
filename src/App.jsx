@@ -359,6 +359,7 @@ export default function App() {
     Number(localStorage.getItem("wespace_last_read")) || 0
   );
   const [notification, setNotification] = useState("");
+  const [showAllSignals, setShowAllSignals] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState(
     typeof Notification !== "undefined" ? Notification.permission : "unsupported"
   );
@@ -391,6 +392,9 @@ export default function App() {
   const myCooldownLeft = pulseCooldownLeftMinutes(me.pulseAt);
   const myPulsesLeft = Math.max(0, PULSE_LIMIT_PER_DAY - (me.hearts || 0));
   const canSendPulse = myPulsesLeft > 0 && myCooldownLeft <= 0;
+
+  const latestSignals = (data.signals || []).slice(0, showAllSignals ? 30 : 4);
+  const hasMoreSignals = (data.signals || []).length > 4;
 
   useEffect(() => {
     const cached = localStorage.getItem("wespace_status");
@@ -852,8 +856,6 @@ export default function App() {
     );
   }
 
-  const latestSignals = (data.signals || []).slice(0, 30);
-
   if (!user) {
     return (
       <main className="app">
@@ -978,14 +980,25 @@ export default function App() {
             {latestSignals.length === 0 ? (
               <p className="empty-small">Noch keine Zeichen heute</p>
             ) : (
-              <div className="signals-list">
-                {latestSignals.map((signal) => (
-                  <div key={signal.id} className="signal-item">
-                    <span>{signal.text}</span>
-                    <small>{clockText(signal.createdAt)}</small>
-                  </div>
-                ))}
-              </div>
+              <>
+                <div className="signals-list">
+                  {latestSignals.map((signal) => (
+                    <div key={signal.id} className="signal-item">
+                      <span>{signal.text}</span>
+                      <small>{clockText(signal.createdAt)}</small>
+                    </div>
+                  ))}
+                </div>
+
+                {hasMoreSignals && (
+                  <button
+                    className="signals-more-button"
+                    onClick={() => setShowAllSignals(!showAllSignals)}
+                  >
+                    {showAllSignals ? "Weniger anzeigen" : "Mehr anzeigen"}
+                  </button>
+                )}
+              </>
             )}
           </section>
 
