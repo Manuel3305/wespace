@@ -304,6 +304,17 @@ function haversineKm(a, b) {
   return Math.round(R * (2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x))));
 }
 
+function moodMessage(name, value) {
+  const map = {
+    "😊 Gut": `${name} fühlt sich gerade gut`,
+    "😴 Müde": `${name} ist gerade müde`,
+    "❤️ Vermisse dich": `${name} vermisst dich`,
+    "😔 Schwerer Tag": `${name} hatte heute einen schweren Tag`,
+  };
+
+  return map[value] || `${name} hat die Stimmung aktualisiert`;
+}
+
 function activityMessage(name, value) {
   const map = {
     "🏠 Zuhause": `${name} ist gerade zuhause`,
@@ -589,7 +600,7 @@ export default function App() {
 
     return {
       ...baseData,
-      signals: [signal, ...(baseData.signals || [])].slice(0, 20),
+      signals: [signal, ...(baseData.signals || [])].slice(0, 30),
     };
   }
 
@@ -841,7 +852,7 @@ export default function App() {
     );
   }
 
-  const latestSignals = (data.signals || []).slice(0, 4);
+  const latestSignals = (data.signals || []).slice(0, 30);
 
   if (!user) {
     return (
@@ -1007,7 +1018,9 @@ export default function App() {
                     <button
                       key={item}
                       className={me.mood === item ? "active" : ""}
-                      onClick={() => updateMyData({ mood: item }, "Stimmung geteilt")}
+                      onClick={() =>
+                        updateMyData({ mood: item }, "Stimmung geteilt", moodMessage(user, item))
+                      }
                     >
                       {item}
                     </button>

@@ -392,6 +392,18 @@ h3 {
 .signals-list {
   display: grid;
   gap: 7px;
+  max-height: 165px;
+  overflow-y: auto;
+  padding-right: 3px;
+}
+
+.signals-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.signals-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .signal-item {
